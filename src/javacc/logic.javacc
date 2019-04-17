@@ -1,0 +1,988 @@
+
+options { 
+    CHOICE_AMBIGUITY_CHECK = 1;
+    OTHER_AMBIGUITY_CHECK = 1;
+    DEBUG_PARSER = false;
+    DEBUG_LOOKAHEAD = false;
+    ERROR_REPORTING = true;
+    BUILD_PARSER = true;
+    BUILD_TOKEN_MANAGER = true;
+    SANITY_CHECK = true;
+    FORCE_LA_CHECK = true;
+}
+
+
+PARSER_BEGIN(LogicScriptParser)
+
+package logicscript.parser;
+
+import java.util.LinkedList;
+
+import logicscript.ast.*;
+import logicscript.ast.nodes.*;
+import logicscript.ast.nodes.decl.*;
+import logicscript.ast.nodes.expr.*;
+import logicscript.ast.nodes.globals.*;
+import logicscript.ast.nodes.importexport.*;
+import logicscript.ast.nodes.stmt.*;
+import logicscript.ast.nodes.stmt.cfl.*;
+import logicscript.ast.nodes.stmt.ef.*;
+
+public class LogicScriptParser {
+
+    public static volatile boolean tagDebugInfo = true;
+
+    public static Location loc ( Token t ) {
+	return new Location ( t.image, t.beginLine, t.endLine, t.beginColumn, t.endColumn );
+    }
+
+    public static void tag ( LibraryBlock l, Token t ) { 
+	if ( ! tagDebugInfo ) return;
+	l.location = loc ( t );
+    }
+
+    public static void tag ( GlobalsBlock g, Token t ) { 
+	if ( ! tagDebugInfo ) return;
+	g.location = loc ( t );
+    }
+
+    public static void tag ( Decl d, Token t ) { 
+	if ( ! tagDebugInfo ) return;
+	d.location = loc ( t );
+    }
+    
+    public static void tag ( FunctionLVarDecl ld, Token t ) {
+	if ( ! tagDebugInfo ) return;
+	ld.location = loc ( t );
+    }
+
+    public static void tag ( Statement s, Token t ) { 
+	if ( ! tagDebugInfo ) return;
+	s.location = loc ( t );
+    }
+
+    public static void tag ( Expression e, Token t ) { 
+	if ( ! tagDebugInfo ) return;
+	e.location = loc ( t );
+    }
+
+
+    public static void tag ( TryCatchStatement.CatchBlock c, Token t ) { 
+	if ( ! tagDebugInfo ) return;
+	c.location = loc ( t );
+    }
+
+    private static double _toreal ( String token ) throws NumberFormatException {
+	if ( token.endsWith("r") || token.endsWith("R") )
+	    token = token.substring ( 0, token.length() - 1 );
+	return Double.parseDouble ( token );
+    }
+
+    private static double _toint ( String token ) throws NumberFormatException {
+	return Integer.parseInt ( token );
+    }
+
+    private static String _tostr ( String token ) throws ParseException {
+	char word = token.charAt ( 0 );
+	if ( word == '"' ) {
+	    return token.substring ( 1, token.length() - 1 );
+	} else
+	    throw new ParseException("unknown string literal type");
+    }
+
+}
+
+PARSER_END(LogicScriptParser)
+
+
+
+SKIP : {
+    " " | "\r" | "\n" | "\t" | "\f"
+}
+
+MORE : {
+    "/**" : WithinMetaComment |
+    "/*" : WithinMultiLineComment
+}
+
+<WithinMetaComment> SKIP : { "*/" : DEFAULT }
+<WithinMetaComment> MORE : { <~[]> }
+
+<WithinMultiLineComment> SKIP : { "*/" : DEFAULT }
+<WithinMultiLineComment> MORE : {  <~[]> }
+
+TOKEN : { 
+    <INTEGER_LITERAL : <BTENINT> | <OCTINT> | <HEXINT> > |
+    
+    /** Integers: */
+    <BTENINT: ([ "+", "-" ])? (["0"-"9"])+ >		|
+    <OCTINT: "0o" (["0"-"6"])+>				|
+    <HEXINT: "0x" (["0"-"9", "A"-"F", "a"-"f"])+>	|
+   
+    /** String literals: */
+    /* FIXME: proper string literals: single-quote, double-quote, escapes */
+    <STRING_LITERAL : "\"" ("\\\""|~["\""])* "\"" >	|
+
+    /** Reals: */
+    <REAL_LITERAL : ([ "+", "-" ])? (["0"-"9"])+ ( "." (["0"-"9"])+ ("R"|"r") )? >
+}
+
+TOKEN : { 
+
+    /** The names of top-level declarations which are not functions,
+	native functions or other(s) */
+
+    <IMPORTS : "imports"> |
+    <FROM : "from"> |
+
+    <EXPORTS : "exports"> |
+    <AS : "as"> |
+
+    <GLOBAL: "global"> |
+    <GLOBALS : "globals"> |
+
+    <ENDIMPORTS : "endimports"> |
+    <ENDEXPORTS : "endexports"> |
+    <ENDGLOBALS : "endglobals"> |
+
+    /** The names of the types */
+    <INTEGER : "integer"> |
+    <REAL : "real"> |
+    <BOOLEAN : "boolean"> |
+    <STRING : "string"> |
+    <CODE : "code"> |
+    <HANDLE : "handle"> |
+    
+    /** The names of types which are not types themselves, but are
+	significant type words */
+    <NOTHING : "nothing"> |
+    <NULL : "null"> |
+    <ARRAY : "array"> |
+    <LOCAL : "local"> |
+    
+    
+    /** The names of top-level declarations which are functions, native
+	functions or other block-yielding declaration(s) */
+    <FUNCTION : "function"> |
+    <ENDFUNCTION : "endfunction"> |
+
+    /** The names of keywords following initial top-level declarations */
+    <TAKES : "takes"> |
+    <RETURNS : "returns"> |
+	
+    /** The modifier type-words for top-level declarations which are functions, native
+	functions or other block-yielding declaration(s) */
+	
+    <NATIVE : "native"> | /** java function reference */
+    <CONST : "constant"> | /** immutable declaration */
+    <DEBUG : "debug"> | /** debug function */
+
+    /** The names of top-level declarations which define types */
+    <TYPE : "type"> |
+    <EXTENDS : "extends"> |
+    
+    /** The words which define statement(s) */
+    
+	/** (control words) */
+    <IF : "if"> |
+    <THEN : "then"> |
+    <ELSEIF : "elseif"> |
+    <ELSE : "else"> |
+    <ENDIF : "endif"> |
+	
+    <LOOP : "loop"> |
+    <ENDLOOP : "endloop"> |
+    <EXITWHEN : "exitwhen"> |
+    
+    <FOR : "for"> |
+    <IN : "in"> |
+    <TO : "to" > |
+    <BY : "by" > |
+    <DO : "do" > |
+    <ENDFOR : "endfor"> |
+    
+    <TRY : "try"> |
+    <CATCH : "catch"> |
+    <ENDTRY : "endtry"> |
+    <RAISE : "raise"> |
+    
+	/** (return words) */
+    <RETURN : "return"> |
+	
+	/** (function words) */
+    <CALL : "call"> |
+    <CALLVAR : "callvar"> |
+    <SET : "set"> |
+
+    /** Words part of expressions */
+    <AND : "and"> |
+    <OR : "or"> |
+    <NOT : "not"> |
+
+    <TRUE : "true"> |
+    <FALSE : "false">
+}
+
+TOKEN : {
+    <IDENTIFIER : ["A"-"Z", "a"-"z", "_"] (["A"-"Z", "a"-"z", "0"-"9", "_", "-"])* > |
+    <LIBSCOPE 	: ["A"-"Z", "a"-"z", "_"] (["A"-"Z", "a"-"z", "0"-"9", "_", "-", ".", "/"])* >
+}
+
+
+/** Top level production */
+void SCRIPT( Chunk alloc ) : { 
+    LibraryBlock obj0; GlobalsBlock obj1; Decl obj2;
+} {
+    ( 
+	obj0 = IMPORTSSECTION() { 
+	    if ( alloc.libImportsDecls == null ) alloc.libImportsDecls = new LinkedList();
+	    alloc.libImportsDecls.add( obj0 ); 
+	} | 
+	obj0 = EXPORTSSECTION() { 
+	    if ( alloc.libExportsDecls == null ) alloc.libExportsDecls = new LinkedList();
+	    alloc.libExportsDecls.add( obj0 ); 
+	} | 
+	obj1 = GLOBALSSECTION( alloc ) { 
+	    if ( alloc.globalsDecls == null ) alloc.globalsDecls = new LinkedList();
+	    alloc.globalsDecls.add( obj1 ); 
+	} | 
+	obj2 = DECL( alloc ) { 
+	    if ( obj2 instanceof FunctionDecl ) {
+		FunctionDecl.FunctionDeclType hintOfType = ( ( FunctionDecl ) obj2 ).type;
+		if ( hintOfType == FunctionDecl.FunctionDeclType.NATIVE ) {
+		    if ( alloc.nfuncDecls == null ) alloc.nfuncDecls = new LinkedList();
+		    alloc.nfuncDecls.add ( (FunctionDecl) obj2 );
+		} else if ( hintOfType == FunctionDecl.FunctionDeclType.USER ) {
+		    if ( alloc.ufuncDecls == null ) alloc.ufuncDecls = new LinkedList();
+		    alloc.ufuncDecls.add ( (FunctionDecl) obj2 );
+		} else {
+		    throw new ParseException (
+			String.format ( "Unknown FunctionDecl type %s", hintOfType )
+		    );
+		}
+	    } else if ( obj2 instanceof TypeDecl ) {
+		if ( alloc.utypeDecls == null ) alloc.utypeDecls = new LinkedList();
+		alloc.utypeDecls.add ( (TypeDecl) obj2 );
+	    } else {
+		throw new ParseException ( 
+		    String.format ( "Unknown Decl type %s", obj2.getClass().getName() ) 
+		);
+	    }
+	} 
+    )+
+}
+
+
+/**********************************************
+ ** && IMPORTS & EXPORTS TABLES           && **
+***********************************************/
+
+LibraryBlock IMPORTSSECTION() : {  
+    LibraryBlock alloc = new LibraryBlock ( LibraryBlock.BlockType.IMPORTS );
+    Token t0 = null; LibraryReference obj0 = null;
+} { 
+    t0 = <IMPORTS> { tag ( alloc, t0 ); }
+    ( obj0 = LIBREF() { alloc.add ( obj0 ); } )+
+    <FROM> ( t0 = <IDENTIFIER> | t0 = <LIBSCOPE> ) { alloc.symbol = t0.image; }
+    <ENDIMPORTS> { return alloc; }
+}
+
+LibraryBlock EXPORTSSECTION() : {  
+    LibraryBlock alloc = new LibraryBlock ( LibraryBlock.BlockType.EXPORTS );
+    Token t0 = null; LibraryReference obj0 = null;
+} { 
+    t0 = <EXPORTS> { tag ( alloc, t0 ); }
+    ( obj0 = LIBREF() { alloc.add ( obj0 ); } )+
+    <AS> ( t0 = <IDENTIFIER> | t0 = <LIBSCOPE> ) { alloc.symbol = t0.image; }
+    <ENDEXPORTS> { return alloc; }
+}
+
+LibraryReference LIBREF() : { 
+    LibraryReference alloc = null;
+    Token t0 = null;
+} { 
+    ( 
+	<TYPE> { alloc = new LibraryReference ( LibraryReference.LibraryReferenceType.TYPE ); }		|
+	<FUNCTION> { alloc = new LibraryReference ( LibraryReference.LibraryReferenceType.FUNCTION ); }	|
+	<GLOBAL> { alloc = new LibraryReference ( LibraryReference.LibraryReferenceType.GLOBAL ); }
+    )
+    
+    (
+	(	/** allow a set of tokens for the import/export type...: */
+	    ( t0 = <IDENTIFIER> { alloc.tokens.add ( t0.image ); } )
+	    ( "," t0 = <IDENTIFIER> { alloc.tokens.add ( t0.image ); } )*  { return alloc; }
+	) | ( /** or allow a single  wildcard character, indicating all types of the type shall be referenced */
+	    "*" {
+		alloc.isWildcard = true; return alloc;
+	    }
+	)
+    )
+}
+
+/**********************************************
+ ** && GLOBALS DECLARATIONS               && **
+***********************************************/
+
+GlobalsBlock GLOBALSSECTION( Chunk c ) : { 
+    GlobalsBlock heap = new GlobalsBlock();
+    GlobalsVarDecl alloc = null;
+    Token t0 = null; TypeDecl obj0 = null; Expression obj1 = null;
+} { 
+    t0 = <GLOBALS> { tag ( heap, t0 ); }
+    ( 
+	obj0 = TYPENAME( c ) { alloc = new GlobalsVarDecl (); alloc.valueType = obj0; }
+	t0 = <IDENTIFIER> { alloc.nameOfGlobalVar = t0.image; }
+	"="
+	obj1 = EXPR( c ) { alloc.rhs = obj1; heap.add ( alloc ); }
+    )+
+    <ENDGLOBALS> { return heap; }
+}
+
+/**********************************************
+ ** && DECLARATIONS                       && **
+***********************************************/
+
+/** DECL: one of a 
+    UTYPE : user type declaration
+    NFUNC : native function declaration
+    UFUNC : user function declaration
+*/
+Decl DECL( Chunk c ) : { 
+    Decl obj = null;
+}
+{ obj = UTYPE_DECL( c ) { return obj; } | obj = NFUNC_DECL( c ) { return obj; } | obj = UFUNC_DECL( c ) { return obj; } } 
+
+/** UTYPE_DECL: a user type declaration, one of a
+	EXTENDS_HANDLE: extends the handle (pointer) type
+	EXTENDS_TYPENAME: extends a user type declaration
+*/
+TypeDecl UTYPE_DECL( Chunk c ) : { 
+    TypeDecl alloc = null;
+    Token t0 = null, t1 = null, t2 = null;
+}{ 
+    t0 = <TYPE> 
+    t1 = <IDENTIFIER>
+    <EXTENDS> ( 
+	<HANDLE> { 
+	    alloc = new TypeDecl ( TypeDecl.TypeDeclType.EXTENDS_HANDLE ); tag ( alloc, t0 );
+    	    alloc.typeName = t1.image;
+	    return alloc;
+	} 
+    |
+	t2 = <IDENTIFIER> {
+	    alloc = new TypeDecl ( TypeDecl.TypeDeclType.EXTENDS_TYPENAME ); tag ( alloc, t0 );
+	    alloc.typeName = t1.image;
+	    alloc.ancestorTypeName = t2.image;
+	    return alloc;   
+	}
+    )
+}
+
+/** NFUNC_DECL: a native (Java) function declaration, body-less */
+FunctionDecl NFUNC_DECL( Chunk c ) : { 
+    FunctionDecl alloc = null;
+    Token t0 = null;
+}{ 
+    t0 = <NATIVE> <FUNCTION> { alloc = new FunctionDecl ( FunctionDecl.FunctionDeclType.NATIVE ); tag ( alloc, t0 ); }
+    t0 = <IDENTIFIER> { alloc.name = t0.image; }
+    _FUNC_DECL_SIG ( c, alloc ) { return alloc; }
+} 
+
+/** UFUNC_DECL: a user-function declaration */
+FunctionDecl  UFUNC_DECL( Chunk c ) : { 
+    FunctionDecl alloc = null; FunctionLVarDecl alloc1 = null;
+    Token t0 = null, t2 = null; TypeDecl t1 = null; Block obj0 = null; Expression obj1 = null;
+}{ 
+    t0 = <FUNCTION> { alloc = new FunctionDecl ( FunctionDecl.FunctionDeclType.USER ); tag ( alloc, t0 ); }
+    t0 = <IDENTIFIER> { alloc.name = t0.image; }
+    _FUNC_DECL_SIG ( c, alloc )
+
+    (
+	t0 = <LOCAL> 
+	( 
+	    (
+		<ARRAY>
+		t1 = TYPENAME ( c )
+		t2 = <IDENTIFIER>
+		"["
+		obj1 = EXPR ( c ) 
+		"]" {
+		    if ( alloc.lvars == null ) alloc.lvars = new LinkedList();
+		    alloc1 = new FunctionLVarDecl ( t2.image, t1, obj1, true ); tag ( alloc1, t0 ); alloc.lvars.add ( alloc1 );
+		}
+	    ) | 
+	    (
+		t1 = TYPENAME ( c )
+
+		t2 = <IDENTIFIER> { obj1 = null; } 
+		( "=" obj1 = EXPR ( c ) )? {
+		    if ( alloc.lvars == null ) alloc.lvars = new LinkedList();
+		    alloc1 = new FunctionLVarDecl( t2.image, t1, obj1 ); tag ( alloc1, t0 ); alloc.lvars.add ( alloc1 );
+		}
+
+		(
+		    ","
+		    t2 = <IDENTIFIER> { obj1 = null; }
+		    ( "=" obj1 = EXPR ( c ) )? { 
+			if ( alloc.lvars == null ) alloc.lvars = new LinkedList();
+			alloc1 = new FunctionLVarDecl( t2.image, t1, obj1 ); tag ( alloc1, t0 ); alloc.lvars.add ( alloc1 );
+		    }
+		)*
+	    ) 
+	)
+    )*
+
+    obj0 = BLOCK( c ) { alloc.block = obj0;}
+    <ENDFUNCTION> { return alloc; }
+} 
+
+/** _FUNC_DECL_SIG: function declaration signature, TAKES [params|NOTHING] RETURNS [type|NOTHING] 
+	mutates the functiondecl allocation provided 
+*/
+void _FUNC_DECL_SIG(  Chunk c, FunctionDecl t ) : {
+    TypeDecl obj0 = null;
+}{ 
+    <TAKES> ( 
+	_FUNC_DECL_PARAMS( c, t ) 
+    | 
+	<NOTHING>
+    ) 
+    <RETURNS> ( 
+	obj0 = TYPENAME( c ) { t.returnType = obj0; }
+    | 
+	<NOTHING> { t.returnType = TypeDecl.TYPE_NOTHING; }
+    )
+}
+
+/** _FUNC_DECL_PARAMS: function declaration parameters parser, [type] [varname][, [type] [varname][, [type][varname].... ]] */
+void _FUNC_DECL_PARAMS( Chunk c, FunctionDecl t ) : { 
+    TypeDecl obj0 = null; Token t0 = null;
+}{
+    obj0 = TYPENAME( c )
+    t0 = <IDENTIFIER> {
+		if ( t.paramNames == null ) t.paramNames = new LinkedList();
+		if ( t.paramTypes == null ) t.paramTypes = new LinkedList();
+		t.paramNames.add ( t0.image );
+		t.paramTypes.add ( obj0 );
+    }
+    
+    (
+		","
+		obj0 = TYPENAME( c )
+		t0 = <IDENTIFIER> {
+		    if ( t.paramNames == null ) t.paramNames = new LinkedList();
+		    if ( t.paramTypes == null ) t.paramTypes = new LinkedList();
+		    t.paramNames.add ( t0.image );
+		    t.paramTypes.add ( obj0 );
+		}
+    )*
+}
+
+/**********************************************
+ ** && BLOCKS & STATEMENTS                && **
+***********************************************/
+
+/** BLOCK: collection of
+    DECL_LOCAL: local declarations
+    STMT : one or more statement(s)
+*/
+Block BLOCK( Chunk c ) : { 
+    Block alloc = new Block();
+    Statement obj0 = null;
+}{ 
+    ( 
+	obj0 = STMT( c ) { alloc.add ( obj0 ); } 
+    )* { 
+	return alloc; 
+    } 
+}
+
+/** STMT: one of
+    CFL: control-flow statement
+    FN : function or stack statement
+*/
+Statement STMT( Chunk c ): {
+    Statement obj0 = null; 
+}{ 
+    obj0 = CFL_STMT( c ) { return obj0; } | 
+    obj0 = FN_STMT( c ) { return obj0; } | 
+    obj0 = DEBUG_STMT ( c ) { return obj0; } 
+}
+
+/** DEBUG_STMT: debugging prefix of STMT; accepts STMT */
+DebugStatement DEBUG_STMT( Chunk c ): { 
+    DebugStatement alloc = new DebugStatement();
+    Statement obj0 = null;
+}{ 
+    <DEBUG> 
+    obj0 = STMT( c ) { alloc.statement = obj0; return alloc; }
+}
+
+/** CFL_STMT: generates control-flow statements, one of :
+	CFL_STMT_IF	: if-elseif-else block(s)
+	CFL_STMT_FOR	: for ... in block
+	CFL_STMT_LOOP	: loop ... exitwhen endloop block
+	CFL_STMT_TRY	: try ... catch ... end block
+	CFL_STMT_RAISE  : raise EXPR
+	CFL_STMT_RETURN : return EXPR
+*/
+ControlFlowStatement CFL_STMT( Chunk c ) : { 
+    ControlFlowStatement obj0 = null;
+}{ 
+    obj0 = CFL_STMT_IF( c ) { return obj0; } | 
+    obj0 = CFL_STMT_LOOP( c ) { return obj0; } | 
+    obj0 = CFL_STMT_FOR( c ) { return obj0; } | 
+    obj0 = CFL_STMT_TRY( c ) { return obj0; } |
+
+    obj0 = CFL_STMT_EXITWHEN( c ) { return obj0; } |
+    obj0 = CFL_STMT_RAISE( c ) { return obj0; } |
+    obj0 = CFL_STMT_RETURN( c ) { return obj0; }
+}
+
+/** FN_STMT: generates execution functions (state-machine operations), one of :
+	FN_STMT_CALL	: call function, ignore RESULT value
+	FN_STMT_CALLVAR : call ufunction assigned to var EXPR
+	FN_STMT_SET	: set local variable to EXPR on RHS
+*/
+ExecutionFunctionStatement FN_STMT( Chunk c ) : { 
+    ExecutionFunctionStatement obj0 = null;
+}{ 
+    obj0 = FN_STMT_CALL( c ) { return obj0; } | 
+    obj0 = FN_STMT_CALLVAR( c ) { return obj0; } |
+    obj0 = FN_STMT_SET( c ) { return obj0; }
+}
+
+/***********************
+ * Control-flow statements :
+ ***********************/
+
+IfStatement CFL_STMT_IF( Chunk c ) : { 
+    IfStatement alloc = new IfStatement(); 
+    Token t0 = null; Expression obj0 = null; Block obj1 = null;
+}{ 
+    /** at least one first condexpr & block must be defined...: */
+    t0 = <IF> { tag ( alloc, t0 ); }	/* IF EXPR THEN BLOCK ...*/
+    obj0 = EXPR( c ) 
+    <THEN> 
+    obj1 = BLOCK( c ) {
+	alloc.conditionalExpr = obj0;
+	alloc.thenBlock = obj1;
+    }
+
+    (	/** ... then, if possible: */
+	( /* ... as many times as is possible...: */
+	    <ELSEIF>		/* ELSEIF EXPR THEN BLOCK */
+	    obj0 = EXPR( c ) 
+	    <THEN> 
+	    obj1 = BLOCK( c ) {
+		if ( alloc.elseIfCondExprs == null ) alloc.elseIfCondExprs = new LinkedList();
+		if ( alloc.elseIfBlocks == null ) alloc.elseIfBlocks = new LinkedList();
+		alloc.elseIfCondExprs.add ( obj0 );
+		alloc.elseIfBlocks.add ( obj1 );
+	    }
+	)+
+    )?
+    (	/** ... then, if possible, once: */
+	<ELSE>			/* ELSE BLOCK */
+	obj1 = BLOCK ( c ) { 
+	    alloc.elseBlock = obj1;
+	}
+    )?
+    <ENDIF> {			/* ENDIF */
+	return alloc; }
+}
+
+LoopStatement CFL_STMT_LOOP( Chunk c ) : { 
+    LoopStatement alloc = new LoopStatement();
+    Token t0 = null; Block obj0 = null;
+}{ 
+    t0 = <LOOP> { tag ( alloc, t0 ); }
+    obj0 = BLOCK( c ) { alloc.statements = obj0; }  
+    <ENDLOOP> { return alloc; }
+}
+
+ForStatement CFL_STMT_FOR( Chunk c ) : { 
+    ForStatement alloc = new ForStatement();
+    Token t0 = null, t1 = null; Expression obj0; Block obj1;
+}{ 
+    t0 = <FOR> { tag ( alloc, t0 ); }				/* FOR IDENTIFIER */
+    t0 = <IDENTIFIER> { alloc.local = t0.image; } 
+    <IN> (							/* IN [IDENTIFIER|EXPR] */
+	    t1 = <IDENTIFIER> { alloc.startLocal = t1.image; }
+	| 
+	    obj0 = EXPR( c ) { alloc.startExpr = obj0; }
+	) 
+    <TO> (							/* TO [IDENTIFIER|EXPR] */
+	    t1 = <IDENTIFIER> { alloc.endLocal = t1.image; }
+	| 
+	    obj0 = EXPR ( c ) { alloc.endExpr = obj0; }
+	)
+    <BY> (							/* BY [IDENTIFIER|EXPR] */
+	    t1 = <IDENTIFIER> { alloc.byLocal = t1.image; }
+	|
+	    obj0 = EXPR ( c ) { alloc.byExpr = obj0; }
+	)
+    <DO> obj1 = BLOCK( c ) { alloc.thenBlock = obj1; }		/* DO BLOCK */
+    <ENDFOR> { return alloc; }					/* ENDFOR */
+} 
+
+
+/** TRY shall now read as follows:
+    
+    <TRY>	BLOCK
+    ( <CATCH>	TYPENAME	IDENTIFIER	<DO> BLOCK )+
+    <ENDTRY>
+
+    so that the expansion generates 1 or more CATCH block(s) of the typename specified. :-) 
+*/
+
+TryCatchStatement CFL_STMT_TRY( Chunk c ) : { 
+    TryCatchStatement alloc = new TryCatchStatement(); TryCatchStatement.CatchBlock alloc1 = null;
+    Token t0 = null, t1 = null; Block obj0 = null, obj2 = null; TypeDecl obj1;
+}{ 
+    t0 = <TRY> { tag ( alloc, t0 ); } obj0 = BLOCK( c ) { alloc.tryBlock = obj0; }  /* TRY BLOCK */
+    (	/* at least one, match: */
+	t0 = <CATCH> 
+	obj1 = TYPENAME ( c )	{ alloc1 = new TryCatchStatement.CatchBlock(); tag ( alloc1, t0 ); alloc1.typeOfCatch = obj1; }
+	t1 = <IDENTIFIER>	{ alloc1.catchLocal = t1.image; }
+	<DO> obj2 = BLOCK( c )	{ alloc1.block = obj2; if ( alloc.catchBlocks == null) alloc.catchBlocks = new LinkedList(); alloc.catchBlocks.add(alloc1); }
+    )+
+    <ENDTRY> { return alloc; }							    /* ENDTRY */
+}
+
+
+ExitWhenStatement CFL_STMT_EXITWHEN( Chunk c ) : { 
+    ExitWhenStatement alloc = new ExitWhenStatement();
+    Token t0 = null;  Expression obj0 = null;
+}{ 
+    t0 = <EXITWHEN> { tag ( alloc, t0 ); } obj0 = EXPR ( c ) { alloc.condExitWhenExpr = obj0; return alloc; }
+}
+
+RaiseStatement CFL_STMT_RAISE( Chunk c ) : { 
+    RaiseStatement alloc = new RaiseStatement();
+    Token t0 = null;  Expression obj0 = null;
+}{ 
+    t0 = <RAISE> { tag ( alloc, t0 ); } obj0 = EXPR ( c ) { alloc.raiseValue = obj0; return alloc; }
+}
+
+ReturnStatement CFL_STMT_RETURN( Chunk c ) : { 
+    ReturnStatement alloc = new ReturnStatement();
+    Token t0 = null;  Expression obj0 = null;
+}{ 
+    t0 = <RETURN> { tag ( alloc, t0 ); } 
+    /* the right-hand-side of RETURN is optional; absence is implicit 'nothing'...: */
+    ( obj0 = EXPR ( c ) { alloc.returnExpression = obj0; } )? { return alloc; }
+}
+
+/***********************
+ * Execution statements :
+ ***********************/
+
+/* FN_STMT_CALL: invoke a function, ignore value (tailcall, discard return) */
+FunctionCallStatement FN_STMT_CALL( Chunk c ) : {
+    FunctionCallStatement alloc = new FunctionCallStatement(); 
+    Token t0 = null; Expression obj0 = null;
+}{ 
+    t0 = <CALL> { tag ( alloc, t0 ); }
+    t0 = <IDENTIFIER> { alloc.nameOfFunction = t0.image; } 
+    "("	   
+	( /* zero or one parameter expressions...: */
+	    obj0 = EXPR( c ) { 
+		if ( alloc.params == null ) alloc.params = new LinkedList();
+		alloc.params.add ( obj0 );
+	    }  
+	    (	/** ...then potentially many parameters follow: */
+		"," /** indicated by awaiting comma */
+		obj0 = EXPR( c ) {  
+		    if ( alloc.params == null ) alloc.params = new LinkedList();
+		    alloc.params.add ( obj0 );
+		} 
+	    )*
+	) ? 
+    ")" { return alloc; }
+}
+
+/* FN_STMT_CALLVAR: invoke a function by pointer reference in var specified (param or local);
+    ignore value (tailcall, discard return) */
+FunctionCallVarStatement FN_STMT_CALLVAR( Chunk c ) : {
+    FunctionCallVarStatement alloc = new FunctionCallVarStatement();
+    Token t0 = null, t1 = null; Expression obj0 = null;
+}{
+    t0 = <CALLVAR> { tag ( alloc, t0 ); }
+    t1 = <IDENTIFIER> { alloc.nameOfLocalOrGlobalVar = t1.image; }
+    "("	    
+	( /* zero or one parameter expressions...: */
+	    obj0 = EXPR( c ) { 
+		if ( alloc.params == null ) alloc.params = new LinkedList();
+		alloc.params.add ( obj0 );
+	    } 
+	    ( /** ...then potentially many parameters follow: */
+		"," /** indicated by awaiting comma */
+		obj0 = EXPR( c ) {  
+		    if ( alloc.params == null ) alloc.params = new LinkedList();
+		    alloc.params.add ( obj0 );
+		} 
+	    )*
+	) ? 
+    ")" { return alloc; }
+}
+
+/** FN_STMT_SET: set variable (local only) */
+ExecutionFunctionStatement FN_STMT_SET( Chunk c ) : { 
+    ExecutionFunctionStatement alloc = null;
+    Token t0 = null, t1 = null; Expression obj0 = null;
+}{ 
+    t0 = <SET>
+    t1 = <IDENTIFIER> 
+    
+    (	
+	/** The identifier is followed by a squarebrace, indicating it is ARRAY: */
+	    "[" { alloc = new SetArrayVariableStatement(); tag ( alloc, t0 ); ( (SetArrayVariableStatement) alloc).nameOfLocalVar = t1.image; }
+	    obj0 = EXPR( c )	{ ( (SetArrayVariableStatement) alloc).indexOfArrayExpr = obj0; }
+	    "]"
+	|
+	/** The identifier has no suffix decorator; build the statement now...: */
+	    {  alloc = new SetVariableStatement(); tag ( alloc, t0 ); ( (SetVariableStatement) alloc ).nameOfLocalVar = t1.image; }
+    )
+    "=" 
+    obj0 = EXPR( c )  { 
+	if ( alloc instanceof SetArrayVariableStatement ) 
+	    ( (SetArrayVariableStatement) alloc ).rhs = obj0;
+	else
+	    ( (SetVariableStatement) alloc ).rhs = obj0;
+	return alloc;
+    }
+}
+
+
+/**********************************************
+ ** && EXPRESSIONS                        && **
+***********************************************/
+
+/**
+    EXPR {
+	UNARY? LPAREN EXPR RPAREN				-> ret0 = { UnaryExpr ( operand, ParenthesisExpr ( expr ) ) | ParenthesisExpr ( expr ) } |
+	UNARY? IDENTIFIER [ LPAREN PARAM_EXPRS RPAREN ]?	-> ret0 = { UnaryExpr ( operand, { VarValueRefExpr ( nameOfLvarOrGlobal ) | FunctionCallExpr ( nameOfLvarOrGlobal, params ) } )? } |
+	UNARY? CALLVAR IDENTIFIER LPAREN PARAM_EXPRS RPAREN	-> ret0 = { UnaryExpr ( operand, { FunctionVarPtrCallExpr ( nameOfLvarOrGlobal, params ) } ) } |
+	FUNCTION IDENTIFIER 					-> ret0 = FunctionPtrExpr ( nameOfFn ) |							
+	TRUE | FALSE						-> ret0 = LiteralValue ( { TRUE | FALSE } ) |
+	INT_LITERAL						-> ret0 = LiteralValue ( INT ) |
+	STR_LITERAL						-> ret0 = LiteralValue ( CHAR*)
+
+	[
+		operand = BINARY_OPERAND			-> a = ret0
+		b = EXPR
+	]?							-> ret0 = BinaryExpr ( a, operand, b );
+    } -> { return ret0; }
+**/
+Expression EXPR( Chunk c ) : { 
+    Expression ret = null, 
+    		obj0 = null, obj1 = null, obj2 = null, obj3 = null;
+    Token t0 = null, t1 = null, t2 = null;
+    UnaryExpression.UnaryOperation uo = null; 
+    BinaryExpression.BinaryOperation bo = null;
+    LinkedList l0 = null;
+    
+}{ 
+    ( /** Expand the potential LHS of the BINARY_OPERAND: */
+	( /** OPERAND_UNARY expansion: */
+	    ( /** a UNARY_OPERAND token */
+		t0 = "~"	{ uo = UnaryExpression.UnaryOperation.BIT_NEGATE; }  |
+		t0 = "-"	{ uo = UnaryExpression.UnaryOperation.NUM_NEGATE; }  |
+		t0 = "+"	{ uo = UnaryExpression.UnaryOperation.NUM_ABSVAL; }  |
+		t0 = <NOT>	{ uo = UnaryExpression.UnaryOperation.BOOL_NOT; }
+	    ) { 
+		ret = new UnaryExpression ();
+		tag ( ret, t0 );
+		((UnaryExpression)ret).operand = uo;
+	    }
+
+	    ( /** followed by PARENTHESIS, CALL_FUNC_VAR, CALL_FUNC, VAR_REF */
+
+		( /** expansion UNARY_OPERAND PARENTHESIS */
+		    t1 = "(" { obj0 = new ParenExpression (); tag ( obj0, t1 ); } 
+		    obj1 = EXPR( c ) { ((ParenExpression)obj0).expressionInParenth = obj1; } 
+		    ")" { ((UnaryExpression)ret).rhs = obj0; } 
+		) |
+		( /** expansion UNARY_OPERAND CALL_FUNC_VAR */
+		    t1 = <CALLVAR> { obj0 = new FunctionCallVarExpression (); tag ( obj0, t1 ); }
+		    t2 = <IDENTIFIER> { ((FunctionCallVarExpression)obj0).nameOfLocalOrGlobalVar = t2.image; }
+		    "(" { l0 = new LinkedList (); }
+			( 
+			    obj1 = EXPR( c ) { l0.add ( obj1 ); } 
+			    ( "," obj1 = EXPR( c ) { l0.add ( obj1 ); })*  
+			)?
+		    ")" { if ( !l0.isEmpty() ) ((FunctionCallVarExpression)obj0).params = l0; ((UnaryExpression)ret).rhs = obj0; }
+		) |
+		( /** expansion UNARY_OPERAND ( VAR_REF | CALL_FUNC ) */
+		    t1 = <IDENTIFIER> 
+		    ( 
+			( 
+			    ( /** expansion for UNARY_OPERAND CALL_FUNC */
+				"(" { l0 = new LinkedList(); }
+				    (
+					obj1 = EXPR( c ) { l0.add ( obj1 ); } 
+					( "," obj1 = EXPR( c ) { l0.add ( obj1 ); } )* 
+				    ) ?
+				")" {
+				    obj0 = new FunctionCallExpression ();
+				    tag ( obj0, t1 );
+				    ((FunctionCallExpression)obj0).nameOfFunction = t1.image;
+				    if ( !l0.isEmpty() ) ((FunctionCallExpression)obj0).params = l0;
+				}
+			    ) | 
+			    ( /** expansion for UNARY_OPERAND VAR_REF_ARRAY */
+				"["
+				obj1 = EXPR ( c )
+				"]" {
+				    obj0 = new VariableArrayRefExpression ();
+				    tag ( obj0, t1 );
+				    ((VariableArrayRefExpression)obj0).nameOfLocalOrGlobalVar = t1.image;
+				    ((VariableArrayRefExpression)obj0).indexOfArrayExpr = obj1;
+				}
+			    )
+			)
+		    )? { 
+			/** case for UNARY_OPERAND VAR_REF */
+			if ( obj0 == null ) {
+			    obj0 = new VariableRefExpression ();
+			    tag ( obj0, t1 );
+			    ((VariableRefExpression)obj0).nameOfLocalOrGlobalVar = t1.image;
+			}
+			/** shall always result in assignment */
+			((UnaryExpression)ret).rhs = obj0; 
+		    }
+		)
+	    ) {
+		return ret;
+	    }
+	) | 
+
+	( /** expansion PARENTHESIS */
+	    t0 = "(" { ret = new ParenExpression (); tag ( ret, t0 ); }
+	    obj0 = EXPR( c ) { ((ParenExpression)ret).expressionInParenth = obj0; }
+	    ")" 
+	) |
+	( /** expansion CALL_FUNC_VAR */
+	    t0 = <CALLVAR> { ret = new FunctionCallVarExpression (); tag ( ret, t0 ); }
+	    t1 = <IDENTIFIER> { ((FunctionCallVarExpression)ret).nameOfLocalOrGlobalVar = t1.image; }
+	    "(" { l0 = new LinkedList(); }
+		( 
+		    obj0 = EXPR( c ) { l0.add ( obj0 ); }
+		    ( "," obj0 = EXPR( c ) { l0.add ( obj0 ); } )* 
+		) ?
+	    ")" { if ( !l0.isEmpty() ) ((FunctionCallVarExpression)ret).params = l0; }
+	) |
+	( /** expansion VAR_REF | CALL_FUNC */
+	    t0 = <IDENTIFIER> 
+	    ( 
+		( /** expansion for CALL_FUNC */ 
+		    "(" { l0 = new LinkedList(); }
+			(   /** either 0 or 1 arguments...: */
+			    obj0 = EXPR( c ) { l0.add ( obj0 ); } 
+			    (  /** ... then as many as indicated by comma: */
+				"," obj0 = EXPR( c ) { l0.add ( obj0 ); } 
+			    )*
+			)?
+		    ")" {
+			ret = new FunctionCallExpression ();
+			tag ( ret, t0 );
+			((FunctionCallExpression)ret).nameOfFunction = t0.image;
+			if ( !l0.isEmpty() ) ((FunctionCallExpression)ret).params = l0;
+		    }
+		) | ( /** expansion for VAR_REF_ARR */ 
+		    "["
+		    obj0 = EXPR ( c )
+		    "]" {
+			ret = new VariableArrayRefExpression ();
+			tag ( ret, t0 );
+			((VariableArrayRefExpression)ret).nameOfLocalOrGlobalVar = t0.image;
+			((VariableArrayRefExpression)ret).indexOfArrayExpr = obj0;
+		    }
+		)
+	    )? 
+	    {
+		/** case for VAR_REF */
+		if ( ret == null ) {
+		    ret = new VariableRefExpression ();
+		    tag ( ret, t0 );
+		    ((VariableRefExpression)ret).nameOfLocalOrGlobalVar = t0.image;
+		}
+	    }
+	) |
+	( 
+	    t0 = <FUNCTION> { ret = new FunctionRefExpression (); tag ( ret, t0 ); }
+	    t1 = <IDENTIFIER> { ((FunctionRefExpression)ret).nameOfFunction = t1.image; }
+	) |
+
+	/** Expansions for booleans: */
+	( 
+	    <TRUE> { ret = LiteralValue.VALUE_TRUE; } | 
+	    <FALSE> { ret = LiteralValue.VALUE_FALSE; } 
+	) |
+
+	/** Expansions for literals */
+	t0 = <REAL_LITERAL>	{ ret = new LiteralValue ( TypeDecl.TYPE_REAL,   _toreal(t0.image) ); tag ( ret, t0 ); } |
+	t0 = <INTEGER_LITERAL> 	{ ret = new LiteralValue ( TypeDecl.TYPE_INTEGER, _toint(t0.image) ); tag ( ret, t0 ); } | 
+	t0 = <STRING_LITERAL> 	{ ret = new LiteralValue ( TypeDecl.TYPE_STRING,  _tostr(t0.image) ); tag ( ret, t0 ); } 
+    )
+
+    ( /* Consider if a BINARY_OPERAND follows...: */
+	( /** ... a BINARY_OPERAND follows, so: */
+	    ( /** expand the BINARY_OPERAND */
+		t0 = "&"	    { bo = BinaryExpression.BinaryOperation.BIT_AND; }	    |
+		t0 = "|"	    { bo = BinaryExpression.BinaryOperation.BIT_OR;  }	    |
+		t0 = "~"	    { bo = BinaryExpression.BinaryOperation.BIT_XOR; }	    |
+		t0 = "<<"	    { bo = BinaryExpression.BinaryOperation.BIT_SHL; }	    |
+		t0 = ">>"	    { bo = BinaryExpression.BinaryOperation.BIT_SHR; }	    |
+
+		t0 = <AND>	    { bo = BinaryExpression.BinaryOperation.BOOL_AND; }	    |
+		t0 = <OR>	    { bo = BinaryExpression.BinaryOperation.BOOL_OR;  }	    |
+
+		t0 = "=="	    { bo = BinaryExpression.BinaryOperation.VAL_EQ;   }	    |
+		t0 = "~="	    { bo = BinaryExpression.BinaryOperation.VAL_NEQ;  }	    |
+		t0 = ">="	    { bo = BinaryExpression.BinaryOperation.VAL_GTEQ; }	    |
+		t0 = "<="	    { bo = BinaryExpression.BinaryOperation.VAL_LTEQ; }	    |
+		t0 = ">"	    { bo = BinaryExpression.BinaryOperation.VAL_GT;   }	    |
+		t0 = "<"	    { bo = BinaryExpression.BinaryOperation.VAL_LT;   }	    |
+
+		t0 = "+" 	    { bo = BinaryExpression.BinaryOperation.NUM_ADD; }	    |
+		t0 = "-"	    { bo = BinaryExpression.BinaryOperation.NUM_SUB; }	    |
+		t0 = "/"	    { bo = BinaryExpression.BinaryOperation.NUM_DIV; }	    |
+		t0 = "*"	    { bo = BinaryExpression.BinaryOperation.NUM_MUL; }	    |
+		t0 = "%"	    { bo = BinaryExpression.BinaryOperation.NUM_MOD; }	    |
+		t0 = "^"	    { bo = BinaryExpression.BinaryOperation.NUM_POW; }
+	    )
+
+	    /** expand the right-hand side of the operand: */
+	    obj0 = EXPR( c ) { 	
+		/** mutate the return var: */
+		obj1 = ret; // store lhs
+		ret = new BinaryExpression ();
+		tag ( ret, t0 );
+		((BinaryExpression)ret).lhs = obj1; // restore lhs
+		((BinaryExpression)ret).operand = bo;
+		((BinaryExpression)ret).rhs = obj0; // rhs from EXPR
+	    }
+	)*
+    ) { return ret; }
+}
+
+/** TYPENAME: one of
+    TYPE: a well defined type name (one of six)
+    IDENTIFIER: a typename defined by the user which maps to one of the six base type(s)
+*/
+TypeDecl TYPENAME( Chunk c ) : { Token t0 = null; }{
+    <INTEGER> { return TypeDecl.TYPE_INTEGER; } | 
+    <REAL> { return TypeDecl.TYPE_REAL; } | 
+    <STRING> { return TypeDecl.TYPE_STRING; } | 
+    <BOOLEAN> { return TypeDecl.TYPE_BOOLEAN; } | 
+    <CODE> { return TypeDecl.TYPE_CODE; } | 
+    <HANDLE> { return TypeDecl.TYPE_HANDLE; } |
+    t0 = <IDENTIFIER> { 
+	TypeDecl decl = c.findTypeDecl ( t0.image ); 
+	if ( decl == null ) 
+	    throw new ParseException ( String.format( "Unknown type-name `%s`", t0.image ) );
+	return decl;
+    }
+}
