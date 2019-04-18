@@ -116,17 +116,29 @@ endfunction
 native function	    TestNativePassedFunctionPointerNativeCall	    takes code pointer returns string
 
 function    TestNativePassedFunctionPointer000	takes nothing returns nothing
-    local code pointer = function TestNativePassedFunctionPointer001
-    
-    local string result = TestNativePassedFunctionPointerNativeCall ( pointer )
+    local code pointer = function TestNativePassedFunctionPointer002
+    local string result
 
-    call PrintConsole ( result )
+    try
+	set result = TestNativePassedFunctionPointerNativeCall ( pointer )
+    catch string message do
+	call PrintConsole ( Str_Concat( "caught: ", message ) )
+	return
+    endtry
+
+    call PrintConsole ( Str_Concat ( "result: ", thrown ) )
 
 endfunction
 
 function    TestNativePassedFunctionPointer001	takes nothing returns string
     call PrintConsole ( "invocation of function pointer from native call" )
     return "the invocation yielded this string"
+endfunction
+
+function    TestNativePassedFunctionPointer002	takes nothing returns string
+    call PrintConsole ( "invocation of function pointer from native call" )
+    raise "testing that raising through native call functions"
+    return "this should not occur"
 endfunction
 
 

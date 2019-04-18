@@ -4,8 +4,11 @@ import java.io.File;
 import java.util.Iterator;
 import java.util.List;
 import logicbyte.bytecode.LinkerObjectFile;
+import logicbyte.bytecode.Opcode;
 import logicbyte.loader.DynamicLibraryImpl;
 import logicbyte.vm.LogicVM;
+import logicbyte.vm.VMDebugCallback;
+import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMFunctionPointer;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
@@ -86,9 +89,45 @@ public class VMTest {
 	}
 
 	try {
-	    VMInvokable callable = vm.invoke(null, vm.getFunction(mainLinker, "TestNativeFunctionThrowsPrimitive"));
-	    callable.invoke(null, null);
-	    while (!callable.advance(null));
+	    final VMDebugCallback callback = new VMDebugCallback() {
+		@Override
+		public void enterfunc(VMInvokable executor, VMFunction caller, VMFunction callee, Opcode generatingOp) {
+		    System.out.println(String.format("enterfunc: %s => %s (%s)", (caller != null) ? caller.name() : "<void>", callee.name(),
+			    (generatingOp != null) ? generatingOp.opcode() : "<void>"));
+		}
+
+		@Override
+		public void exitfunc(VMInvokable executor, VMFunction caller, VMFunction callee, Object returnValue) {
+		    System.out.println(String.format("exitfunc: %s <= %s (return `%s`)", (caller != null) ? caller.name() : "<void>",
+			    callee.name(), (returnValue != null) ? returnValue : "<void>"));
+		}
+
+		@Override
+		public void unwindfunc(VMInvokable executor, VMFunction caller, VMFunction callee, Object raiseValue) {
+		    System.out.println(String.format("unwindfunc: %s <= %s (raising `%s`)", (caller != null) ? caller.name() : "<void>",
+			    callee.name(), raiseValue));
+		}
+
+		@Override
+		public void beforeop(VMInvokable executor, VMFunction func, Opcode op) {
+		    System.out.println(String.format("beforeop: func %s, op %s", func.name(), op.opcode()));
+		}
+
+		@Override
+		public void breakpoint(VMInvokable executor, VMFunction func, Opcode breakpoint) {
+		    System.out.println(String.format("breakpoint: func %s, op %s", func.name(), breakpoint.opcode()));
+		}
+
+		@Override
+		public void afterop(VMInvokable executor, VMFunction func, Opcode op) {
+		    System.out.println(String.format("afterop: func %s, op %s", func.name(), op.opcode()));
+		}
+	    };
+
+	    VMInvokable callable = vm.invoke(callback, vm.getFunction(mainLinker, "TestNativePassedFunctionPointer000"));
+	    callable.invoke(callback, null);
+	    while (!callable.advance(callback));
+
 	} catch (Exception e) {
 	    e.printStackTrace(System.err);
 	    assertNull("expected no exception", e);
