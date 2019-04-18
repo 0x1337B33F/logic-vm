@@ -7,10 +7,12 @@ import logicbyte.loader.DynamicLibraryFile;
 import logicbyte.vm.LogicVM;
 import logicbyte.vm.factory.LogicVMFactory;
 import logicbyte.vm.factory.VMClosureFactory;
-import logicbyte.vm.runtime.func.BaseFuncs;
-import logicbyte.vm.runtime.func.ConsoleFuncs;
 import logicbyte.vm.runtime.BaseLogicVMInstance;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
+import logicbyte.vm.runtime.func.BaseFuncs;
+import logicbyte.vm.runtime.func.ConsoleFuncs;
+import logicbyte.vm.runtime.func.ListFuncs;
+import logicbyte.vm.runtime.func.RegexpFuncs;
 
 /**
  *
@@ -23,6 +25,8 @@ public class BaseVMFactory implements LogicVMFactory {
 	final BaseLogicVMInstance alloc = new BaseLogicVMInstance(loader, closureFactory);
 	applyStaticMethods(alloc, ConsoleFuncs.class);
 	applyStaticMethods(alloc, BaseFuncs.class);
+	ListFuncs.apply(alloc);
+	RegexpFuncs.apply(alloc);
 	return alloc;
     }
 
