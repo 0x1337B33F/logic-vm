@@ -96,6 +96,7 @@ public class Compiler {
 
 	for (File file : srcs)
 	    if (file.isFile()) {
+		System.out.print(String.format("Compiling `%s`... ", file.getName()));
 		try {
 		    fis = new FileInputStream(file);
 		    dstChunkObj = new Chunk();
@@ -148,6 +149,7 @@ public class Compiler {
 		    System.err.println(String.format("Error when writing compiled linker and bytecode for file `%s`:", file));
 		    e.printStackTrace(System.err);
 		}
+		System.out.println("OK!");
 	    }
     }
 
