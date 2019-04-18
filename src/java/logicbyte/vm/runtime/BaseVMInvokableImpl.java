@@ -60,7 +60,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	Closure functionClosureObj;
 	Stack<Closure> functionClosureStack;
 	Stack<Object> functionStackStack;
-	Stack<Integer> functionTryCatchStack;
+	Stack<Pair<Integer, Integer>> functionTryCatchStack;
 
 	Object functionCaughtExceptionObj;
 
@@ -224,16 +224,30 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    Pair<VMFunction, FunctionCallContext> nativeContext = enterfunc(debugger, ptr, generatingOp);
 	    nativeContext.b().contextType = FunctionCallContextType.NATIVE;
 
+	    Object thrown = null;
+
 	    try {
 		Object result = jfunc.invoke(instanceObj, this, (debugger != null) ? debugger : debuggerObj, arguments);
 		exitfunc(debugger, nativeContext.a(), result);
-	    } catch (IllegalAccessException | InvocationTargetException reflect) {
+	    } catch (IllegalAccessException reflect) {
 		throw new VMException("Reflection exception", reflect);
+	    } catch (InvocationTargetException ite) {
+		if (ite.getCause() instanceof ThrowObjectException)
+		    thrown = ((ThrowObjectException) ite.getCause()).getThrown();
+		else if (ite.getCause() instanceof UncaughtUserException)
+		    thrown = ((UncaughtUserException) ite.getCause()).getUncaught();
+		else if (ite.getCause() instanceof VMException)
+		    throw (VMException) ite.getCause();
 	    } catch (ThrowObjectException thrownObject) {
+		thrown = thrownObject.getThrown();
+	    }
+
+	    if (thrown != null) {
 		/* unwind the native function manually: */
 		if (callStack.pop() != nativeContext)
 		    throw new VMException("native stack unwind failure");
-		__raise(debugger, callStack.peek().b(), thrownObject.getThrown());
+		debugger.unwindfunc(this, callStack.peek().a(), ptr, thrown);
+		__raise(debugger, callStack.peek().b(), thrown);
 	    }
 
 	}
@@ -274,7 +288,6 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (boundary.programCounterValue >= opcodes.size())
 	    exitfunc(debugger, func, null);
 	else {
-	    boolean flag = true;
 	    Opcode op = opcodes.get(boundary.programCounterValue);
 
 	    if (debugger != null)
@@ -285,7 +298,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		    break;
 
 		case JMP:
-		    flag = exec__JMP(func, boundary, op, debugger);
+		    exec__JMP(func, boundary, op, debugger);
 		    break;
 		case DUP:
 		    boundary.functionStackStack.push(boundary.functionStackStack.peek());
@@ -382,7 +395,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		    exec__TRY(func, boundary, op, debugger);
 		    break;
 		case CATCH:
-		    flag = exec__CATCH(func, boundary, op, debugger);
+		    exec__CATCH(func, boundary, op, debugger);
 		    break;
 
 		case RAISE:
@@ -399,8 +412,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		    break;
 	    }
 
-	    if (flag)
-		boundary.programCounterValue++;
+	    boundary.programCounterValue++;
 
 	    if (debugger != null)
 		debugger.afterop(this, func, op);
@@ -485,27 +497,41 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void __raise(VMDebugCallback debugger, FunctionCallContext boundary, Object raiseValue) throws VMException {
+	if (callStack.isEmpty())
+	    throw new UncaughtUserException(instanceObj, null, raiseValue);
+	if (boundary != callStack.peek().b())
+	    throw new VMException("wrong function context for raise call");
 	if (boundary.functionTryCatchStack.isEmpty() && boundary.contextType != FunctionCallContextType.NATIVE) {
 	    Pair<VMFunction, FunctionCallContext> obj = null;
 	    while (!callStack.isEmpty() && (obj = callStack.peek()) != null) {
-		if (!obj.b().functionTryCatchStack.isEmpty() || obj.b().contextType == FunctionCallContextType.NATIVE)
+		if (obj.b().contextType == FunctionCallContextType.NATIVE || (obj.b().functionTryCatchStack != null && !obj.b().functionTryCatchStack.
+			isEmpty()))
 		    break;
 		callStack.pop();
 		if (debugger != null)
 		    debugger.unwindfunc(this, (!callStack.isEmpty()) ? callStack.peek().a() : null, obj.a(), raiseValue);
 	    }
 
-	    if (callStack.isEmpty() || obj == null)
+	    if (callStack.isEmpty() || obj == null || obj.b().contextType == FunctionCallContextType.NATIVE)
 		throw new UncaughtUserException(instanceObj, obj.a().closure(), raiseValue);
-	    obj.b().functionCaughtExceptionObj = raiseValue;
-	    obj.b().programCounterValue = obj.b().functionTryCatchStack.peek();
+
+	    final FunctionCallContext newBoundary = obj.b();
+
+	    newBoundary.functionCaughtExceptionObj = raiseValue;
+	    final Pair<Integer, Integer> functionTryCatchDest = newBoundary.functionTryCatchStack.peek();
+	    newBoundary.programCounterValue = functionTryCatchDest.a() - 1;
+	    while (newBoundary.functionClosureStack.size() > functionTryCatchDest.b())
+		newBoundary.functionClosureStack.pop();
 	} else {
 	    boundary.functionCaughtExceptionObj = raiseValue;
-	    boundary.programCounterValue = boundary.functionTryCatchStack.peek();
+	    final Pair<Integer, Integer> functionTryCatchDest = boundary.functionTryCatchStack.peek();
+	    boundary.programCounterValue = functionTryCatchDest.a() - 1;
+	    while (boundary.functionClosureStack.size() > functionTryCatchDest.b())
+		boundary.functionClosureStack.pop();
 	}
     }
 
-    private boolean exec__JMP(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
+    private void exec__JMP(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	boolean flag = true;
 	if ((o.getopts() & Opcodes.BITMASK_JMP_JCJT) != 0)
 	    flag = boundary.comparisonRegisterValue;
@@ -519,15 +545,15 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		offset = (Integer) o.argobject(0);
 
 	    if ((o.getopts() & Opcodes.BITMASK_JMP_AORO) != 0)
-		boundary.programCounterValue = offset;
+		boundary.programCounterValue = (offset - 1);
 	    else
-		boundary.programCounterValue += offset;
+		boundary.programCounterValue += (offset - 1);
 
-	    if (boundary.programCounterValue < 0)
+	    if (boundary.programCounterValue < 0) {
 		__throw("JMP: program counter underflow");
-	    return false;
-	} else
-	    return true;
+		return;
+	    }
+	}
     }
 
     private void exec__FUNCPTR(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
@@ -547,8 +573,10 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	int numArgs = __getoparg(o, 1, Integer.class);
 	Object[] argvals = new Object[ numArgs ];
 	VMFunctionPointer ptr = instanceObj.getfunc(func.closure(), fnName);
-	if (ptr == null)
+	if (ptr == null) {
 	    __raise(debugger, boundary, String.format("No such function %s for function call", fnName));
+	    return;
+	}
 	for (int i = (numArgs - 1); i >= 0; i--)
 	    argvals[i] = boundary.functionStackStack.pop();
 	boundary.desiresCallResult = o.getopt(Opcodes.BITMASK_CALL_RVAL);
@@ -562,8 +590,10 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	for (int i = (numArgs - 1); i >= 0; i--)
 	    argvals[i] = boundary.functionStackStack.pop();
 	VMFunctionPointer ptr = __getlocal(boundary, localNum, VMFunctionPointer.class);
-	if (ptr == null)
+	if (ptr == null) {
 	    __raise(debugger, boundary, String.format("Attempt to dereference nothing value local %s for function call", localNum));
+	    return;
+	}
 	boundary.desiresCallResult = o.getopt(Opcodes.BITMASK_CALLLOCAL_RVAL);
 	callfunc(debugger, ptr, argvals, o);
     }
@@ -634,10 +664,14 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		Object rhs = boundary.functionStackStack.pop();
 		Object lhs = boundary.functionStackStack.pop();
 
-		if (!(rhs instanceof Integer) && !(rhs instanceof Double))
+		if (!(rhs instanceof Integer) && !(rhs instanceof Double)) {
 		    __raise(debugger, boundary, String.format("Binary operation right-hand-side must be numeric type"));
-		if (!(lhs instanceof Integer) && !(lhs instanceof Double))
+		    return;
+		}
+		if (!(lhs instanceof Integer) && !(lhs instanceof Double)) {
 		    __raise(debugger, boundary, String.format("Binary operation left-hand-side must be numeric type"));
+		    return;
+		}
 
 		Integer boxIntRhs = null, boxIntLhs = null;
 		Double boxDblRhs = null, boxDblLhs = null;
@@ -717,8 +751,10 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		int rhs = __getstackval(boundary, Integer.class);
 		Object lhs = boundary.functionStackStack.pop();
 
-		if (!(lhs instanceof Integer) && !(lhs instanceof Double))
+		if (!(lhs instanceof Integer) && !(lhs instanceof Double)) {
 		    __raise(debugger, boundary, "Binary operation left-hand-side must be numeric type");
+		    return;
+		}
 
 		Integer boxIntLhs = null;
 		Double boxDblLhs = null;
@@ -778,8 +814,10 @@ public class BaseVMInvokableImpl implements VMInvokable {
 			    default:
 				throw new IllegalStateException();
 			}
-		    else
+		    else {
 			__raise(debugger, boundary, String.format("Binary comparison operation right-hand-side must be numeric type"));
+			return;
+		    }
 		    boundary.functionStackStack.push(product);
 		} else if (lhs instanceof String && rhs instanceof String)
 		    boundary.functionStackStack.push(((String) lhs).equals((String) rhs));
@@ -807,10 +845,14 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		Object rhs = boundary.functionStackStack.pop();
 		Object lhs = boundary.functionStackStack.pop();
 
-		if (!(rhs instanceof Integer) && !(rhs instanceof Double))
+		if (!(rhs instanceof Integer) && !(rhs instanceof Double)) {
 		    __raise(debugger, boundary, String.format("Binary operation right-hand-side must be numeric type"));
-		if (!(lhs instanceof Integer) && !(lhs instanceof Double))
+		    return;
+		}
+		if (!(lhs instanceof Integer) && !(lhs instanceof Double)) {
 		    __raise(debugger, boundary, String.format("Binary operation left-hand-side must be numeric type"));
+		    return;
+		}
 
 		Integer boxIntRhs = null, boxIntLhs = null;
 		Double boxDblRhs = null, boxDblLhs = null;
@@ -930,8 +972,10 @@ public class BaseVMInvokableImpl implements VMInvokable {
 			default:
 			    throw new IllegalStateException();
 		    }
-		else
+		else {
 		    __raise(debugger, boundary, String.format("Unsupported type %s for numerical unary operation", rhs.getClass().getName()));
+		    return;
+		}
 	    }
 	    break;
 	    case ILLEGAL:
@@ -964,8 +1008,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	int ptr = currentClosure.startOfClosureLocals + currentClosure.numberOfClosureLocals;
 	currentClosure.numberOfClosureLocals++;
 	if (ptr != __getoparg(o, 1, Integer.class))
-	    __throw(String.format("NEWUPVAR: new upvar defined in slot %s does not match expected lvar slot %s", __getoparg(o, 0,
-		    Integer.class), ptr));
+	    __throw(String.format("NEWUPVAR: new upvar defined in slot %s does not match expected lvar slot %s", ptr, __getoparg(o, 1, Integer.class)));
 	currentClosure.typesOfClosureLocals.add(__getoparg(o, 0, Integer.class));
 	currentClosure.valuesOfClosureLocals.add(null);
     }
@@ -1022,15 +1065,21 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
 	Array arrayPtr = __getlocalarr(boundary, localNum);
 
-	if (arrayPtr == null)
+	if (arrayPtr == null) {
 	    __raise(debugger, boundary, "array not initialized");
-	if (0 > arrayIdx || arrayIdx >= arrayPtr.sizeOfArray)
+	    return;
+	}
+	if (0 > arrayIdx || arrayIdx >= arrayPtr.sizeOfArray) {
 	    __raise(debugger, boundary, "array index out of bounds");
+	    return;
+	}
 
 	int typeOfAssignVal = instanceObj.gettypenum(func.closure(), assignVal);
-	if (typeOfAssignVal != arrayPtr.typeOfArray)
+	if (typeOfAssignVal != arrayPtr.typeOfArray) {
 	    __raise(debugger, boundary, String.format("array type %s cannot contain values of type %s", arrayPtr.typeOfArray,
 		    typeOfAssignVal));
+	    return;
+	}
 	arrayPtr.arrayValues[arrayIdx] = assignVal;
     }
 
@@ -1042,8 +1091,10 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	int local = __getoparg(o, 0, Integer.class);
 	int localType = __getlocaltype(boundary, local);
 	Object value = __getlocal(boundary, local, Object.class);
-	if ((localType == 1 || localType >= 7) && value == null)
+	if ((localType == 1 || localType >= 7) && value == null) {
 	    __raise(debuggerObj, boundary, "attempt to dereference null handle pointer");
+	    return;
+	}
 	boundary.functionStackStack.push(value);
     }
 
@@ -1053,8 +1104,10 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (globalBox == null)
 	    throw new IllegalStateException(String.format("GETGLOBAL: no such global %s", globalName));
 
-	if ((globalBox.typeOfGlobalValue == 1 || globalBox.typeOfGlobalValue >= 7) && globalBox.valueInGlobalBox == null)
+	if ((globalBox.typeOfGlobalValue == 1 || globalBox.typeOfGlobalValue >= 7) && globalBox.valueInGlobalBox == null) {
 	    __raise(debuggerObj, boundary, "attempt to dereference null handle pointer");
+	    return;
+	}
 	boundary.functionStackStack.push(globalBox.valueInGlobalBox);
     }
 
@@ -1062,10 +1115,14 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	int arrayIdx = __getstackval(boundary, Integer.class);
 	int localNum = __getoparg(o, 0, Integer.class);
 	Array arrayPtr = __getlocalarr(boundary, localNum);
-	if (arrayPtr == null)
+	if (arrayPtr == null) {
 	    __raise(debugger, boundary, "array not initialized");
-	if (0 > arrayIdx || arrayIdx >= arrayPtr.sizeOfArray)
+	    return;
+	}
+	if (0 > arrayIdx || arrayIdx >= arrayPtr.sizeOfArray) {
 	    __raise(debugger, boundary, "array index out of bounds");
+	    return;
+	}
 	boundary.functionStackStack.push(arrayPtr.arrayValues[arrayIdx]);
     }
 
@@ -1078,32 +1135,27 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void exec__TRY(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	boundary.functionTryCatchStack.push(__getoparg(o, 0, Integer.class));
+	boundary.functionTryCatchStack.push(new Pair<>(__getoparg(o, 0, Integer.class), boundary.functionClosureStack.size()));
     }
 
-    private boolean exec__CATCH(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
+    private void exec__CATCH(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	if (!o.getopt(Opcodes.BITMASK_CATCH_HASNEXT))
 	    boundary.functionTryCatchStack.pop();
 
 	int catchtype = __getoparg(o, 0, Integer.class),
 		catchnext = __getoparg(o, 1, Integer.class);
 
-	if (boundary.functionCaughtExceptionObj == null) {
-	    boundary.programCounterValue = catchnext;
-	    return false;
-	} else {
+	if (boundary.functionCaughtExceptionObj == null)
+	    boundary.programCounterValue = (catchnext - 1);
+	else {
 	    int objtype = instanceObj.gettypenum(func.closure(), boundary.functionCaughtExceptionObj);
 	    if (instanceObj.checkcast(catchtype, objtype)) {
 		boundary.functionStackStack.push(boundary.functionCaughtExceptionObj);
 		boundary.functionCaughtExceptionObj = null;
-		return true;
-	    } else if (o.getopt(Opcodes.BITMASK_CATCH_HASNEXT)) {
-		boundary.programCounterValue = catchnext;
-		return false;
-	    } else {
+	    } else if (o.getopt(Opcodes.BITMASK_CATCH_HASNEXT))
+		boundary.programCounterValue = (catchnext - 1);
+	    else
 		__raise(debugger, boundary, boundary.functionCaughtExceptionObj);
-		return false;
-	    }
 	}
     }
 
@@ -1117,8 +1169,10 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    value = boundary.functionStackStack.pop();
 	else
 	    value = boundary.functionStackStack.peek();
-	if (!(value instanceof Boolean))
+	if (!(value instanceof Boolean)) {
 	    __raise(debugger, boundary, String.format("Cannot set compare register from non-boolean type"));
+	    return;
+	}
 	boundary.comparisonRegisterValue = (boolean) value;
     }
 

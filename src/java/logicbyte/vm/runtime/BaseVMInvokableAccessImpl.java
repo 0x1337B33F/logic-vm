@@ -133,7 +133,13 @@ public class BaseVMInvokableAccessImpl implements VMInvokableAccess {
     }
 
     @Override
-    public int getFunctionTryCatchStackValue(int stackSlot, int tryCatchStackSlot) {
-	return this.context(stackSlot).b().functionTryCatchStack.get(tryCatchStackSlot);
+    public int getFunctionTryCatchStackJumpDest(int stackSlot, int tryCatchStackSlot) {
+	return this.context(stackSlot).b().functionTryCatchStack.get(tryCatchStackSlot).a();
     }
+
+    @Override
+    public int getFunctionTryCatchStackClosureDepth(int stackSlot, int tryCatchStackSlot) throws IndexOutOfBoundsException {
+	return this.context(stackSlot).b().functionTryCatchStack.get(tryCatchStackSlot).b();
+    }
+
 }

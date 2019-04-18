@@ -150,6 +150,8 @@ public interface VMInvokableAccess {
      *
      * @return The try-catch jump address
      */
-    public int getFunctionTryCatchStackValue(int stackSlot, int tryCatchStackSlot) throws IndexOutOfBoundsException;
+    public int getFunctionTryCatchStackJumpDest(int stackSlot, int tryCatchStackSlot) throws IndexOutOfBoundsException;
+
+    public int getFunctionTryCatchStackClosureDepth(int stackSlot, int tryCatchStackSlot) throws IndexOutOfBoundsException;
 
 }
