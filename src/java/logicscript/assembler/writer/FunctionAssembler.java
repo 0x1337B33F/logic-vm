@@ -882,7 +882,7 @@ public class FunctionAssembler {
 			    output(new OpcodeControlBitmask(Opcodes.RETN, Opcodes.BITMASK_RETN_RVAL));
 			}
 		    else
-			output(Opcodes.RETN);
+			output(new OpcodeControlBitmask(Opcodes.RETN, (byte) 0));
 		    return true;
 		}
 	    } else if (s instanceof ExecutionFunctionStatement)
@@ -1106,8 +1106,8 @@ public class FunctionAssembler {
 	    closure.types[ptr] = numberOfTypeOfLocal;
 	    closure.arrays[ptr] = false;
 
-	    output(new OpcodeControlBitmask(Opcodes.NEWUPVAR, newlist(numberOfTypeOfLocal, ptr)));
-	    return ptr;
+	    output(new OpcodeControlBitmask(Opcodes.NEWUPVAR, newlist(numberOfTypeOfLocal, closure.start + ptr)));
+	    return closure.start + ptr;
 	}
 
 	/**
@@ -1159,7 +1159,7 @@ public class FunctionAssembler {
 		    GeneratorClosure closureObj = itx.next();
 		    slot = closureObj.slot(nameOfLocal);
 		    if (slot != -1)
-			return slot;
+			return (closureObj.start + slot);
 		}
 	    }
 
