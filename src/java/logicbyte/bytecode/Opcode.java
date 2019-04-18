@@ -434,11 +434,11 @@ public interface Opcode {
 	}
 
 	public byte getopts() {
-	    throw new IllegalStateException("Not a instance-value specific container of an opcode");
+	    throw new IllegalStateException(String.format("%s: Not a instance-value specific container of an opcode", name()));
 	}
 
 	public boolean getopt(byte mask) {
-	    throw new IllegalStateException("Not an instance-value specific container of an opcode");
+	    throw new IllegalStateException(String.format("%s: Not a instance-value specific container of an opcode", name()));
 	}
 
 	public byte getword() {
@@ -454,7 +454,7 @@ public interface Opcode {
 	}
 
 	public Object argobject(int slot) {
-	    throw new IllegalStateException("Not an instance-value specific container of an opcode");
+	    throw new IllegalStateException(String.format("%s: Not a instance-value specific container of an opcode", name()));
 	}
 
     }
