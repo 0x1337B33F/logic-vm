@@ -57,7 +57,11 @@ type 	coroutine		extends 	handle
 /** Regexp matcher object: pointer to a regular expression matcher instance */
 type	regexp_matcher		extends		handle
 
+/** List type object: pointer to a native List<> (generic type) */
+type	list			extends		handle
 
+/** Iterator type object: pointer to a native Iterator<> (generic type) */
+type	iterator		extends		handle
 
 globals
 
@@ -184,12 +188,12 @@ native function		StrRegExp_CreateMatcher		takes 	string pattern					returns rege
 /** StrRegExp_Update: update the matcher handle to match against the input string s; the
  * matcher shall be placed at the first full match, the return shall indicate whether there
  * is at least one match (MATCH_ANY). */
-native function		StrRegExp_Update			takes	regexp_matcher m, string s		returns boolean
+native function		StrRegExp_Update		takes	regexp_matcher m, string s			returns boolean
 
 /** StrRegExp_Matches: return if the current match pointer position in the string is valid;
  * after _Update this shall indicate if the pattern matches; if _NextMatch or _PrevMatch is
  * used then _Matches shall indicate if the pointer position is a legal one. */
-native function		StrRegExp_Matches			takes	regexp_matcher m			returns boolean
+native function		StrRegExp_Matches		takes	regexp_matcher m				returns boolean
 
 /** StrRegExp_MatchNumGroups: return the number of matcher pattern groups which are capturing
  * in the current match pointer index. If the pointer index is invalid, -1 is returned. */
@@ -207,15 +211,44 @@ native function		StrRegExp_MatchString		takes	regexp_matcher m				returns string
  * pointer is now at a valid match or not. */
 native function		StrRegExp_NextMatch		takes 	regexp_matcher m				returns boolean
 
-/** StrRegExp_PrevMatch: move to the previous full match in the matched string; returns if the
- * match pointer is now at a valid match or not. */
-native function		StrRegExp_PrevMatch		takes	regexp_matcher m				returns boolean
 
-/** StrRegExp_NumMatches: return the number of full matches in the matched string; if the string does
- * not matched returns 0, otherwise, returns the full number of full matches (1...n) in the target 
- * string value. */
-native function		StrRegExp_NumMatches		takes	regexp_matcher m				returns integer
+/** list functions: */
+native function		List_NewB			takes	nothing						returns list
+native function		List_NewI			takes	nothing						returns list
+native function		List_NewR			takes	nothing						returns list
+native function		List_NewS			takes	nothing						returns list
+native function		List_NewH			takes	nothing						returns list
 
+native function		List_GetIterator		takes	list l						returns iterator
+native function		List_Size			takes	list l						returns integer
+
+native function		List_GetB			takes	list l,	integer i				returns boolean
+native function		List_GetI			takes	list l, integer i				returns integer
+native function		List_GetR			takes	list l, integer i				returns real
+native function		List_GetS			takes	list l, integer i				returns string
+native function		List_GetH			takes	list l, integer i				returns handle
+
+native function		List_PutB			takes	list l, boolean b				returns boolean
+native function		List_PutI			takes	list l, integer i				returns boolean
+native function		List_PutR			takes	list l, real r					returns boolean
+native function		List_PutS			takes	list l, string s				returns boolean
+native function		List_PutH			takes	list l, handle o				returns boolean
+
+native function		List_SetB			takes	list l, integer i, boolean b			returns boolean
+native function		List_SetI			takes	list l, integer i, integer v			returns boolean
+native function		List_SetR			takes	list l, integer i, real r			returns boolean
+native function		List_SetS			takes	list l, integer i, string s			returns boolean
+native function		List_SetH			takes	list l, integer i, handle o			returns boolean
+
+
+/** iterator functions: */
+native function		Iterator_HasNext		takes	iterator i					returns boolean
+
+native function		Iterator_NextB			takes	iterator i					returns boolean
+native function		Iterator_NextI			takes	iterator i					returns integer
+native function		Iterator_NextR			takes	iterator i					returns real
+native function		Iterator_NextS			takes	iterator i					returns string
+native function		Iterator_NextH			takes	iterator i					returns handle
 
 
 /** The root types & type-support library: */
@@ -335,12 +368,34 @@ exports
 	    StrRegExp_MatchGroup,		/* regexp_matcher_group:	regexp_matcher, integer		-> string */
 	    StrRegExp_MatchString,		/* regexp_matcher_string:	regexp_matcher			-> string */
 
-	    StrRegExp_NextMatch,		/* regexp_matcher_next:		regexp_matcher			-> boolean */
-	    StrRegExp_PrevMatch,		/* regexp_matcher_prev:		regexp_matcher			-> boolean */
+	    StrRegExp_NextMatch			/* regexp_matcher_next:		regexp_matcher			-> boolean */
 
-	    StrRegExp_NumMatches		/* regexp_matcher_count:	regexp_matcher			-> integer */
     as		root.string.regexp
     endexports
 
 /** usage: imports function StrRegExp_CreateMatcher, StrRegExp_FreeMatcher, StrRegExp_Update, StrRegExp_Matches, StrRegExp_MatchNumGroups,
 StrRegExp_MatchGroups, StrRegExp_MatchString, StrRegExp_NextMatch, StrRegExp_PrevMatch, StrRegExp_NumMatches from root.string.regexp endimports */
+
+
+/** The lists library: */
+exports
+    type
+        list
+    function
+	List_NewB, List_NewI, List_NewR, List_NewS, List_NewH,
+	List_GetIterator, List_Size,
+	List_GetB, List_GetI, List_GetR, List_GetS, List_GetH,
+	List_PutB, List_PutI, List_PutR, List_PutS, List_PutH,
+	List_SetB, List_SetI, List_SetR, List_SetS, List_SetH
+    as	    root.lists
+endexports
+
+/** The iterators library: */
+exports
+    type
+        iterator
+    function
+	Iterator_HasNext, 
+	Iterator_NextB, Iterator_NextI, Iterator_NextR, Iterator_NextS, Iterator_NextH
+    as	    root.iterators
+endexports
