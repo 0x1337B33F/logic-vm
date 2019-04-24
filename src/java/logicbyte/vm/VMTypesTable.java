@@ -1,7 +1,5 @@
 package logicbyte.vm;
 
-import logicbyte.bytecode.LinkerObjectFile.TypesEntry;
-
 /**
  * <p>
  * Contract interface for classes which implement Closure type dictionaries.
@@ -19,7 +17,7 @@ public interface VMTypesTable {
      *
      * @return If the type was defined or not
      */
-    public boolean defineType(int numberOfType, TypesEntry typeDecl);
+    public boolean defineType(int numberOfType, String typeDecl);
 
     /**
      * Get the type declaration for a type number
@@ -28,16 +26,7 @@ public interface VMTypesTable {
      *
      * @return The type declaration
      */
-    public TypesEntry getTypeOf(int typeNumber);
-
-    /**
-     * Get the number of a type declaration
-     *
-     * @param typeDecl The type declaration
-     *
-     * @return The type number
-     */
-    public int getNumberOf(TypesEntry typeDecl);
+    public String getTypeOf(int typeNumber);
 
     /**
      * Get the number of a type name
