@@ -78,7 +78,7 @@ public class LogicScriptParser {
 	return Double.parseDouble ( token );
     }
 
-    private static double _toint ( String token ) throws NumberFormatException {
+    private static int _toint ( String token ) throws NumberFormatException {
 	return Integer.parseInt ( token );
     }
 
@@ -124,7 +124,7 @@ TOKEN : {
     <STRING_LITERAL : "\"" ("\\\""|~["\""])* "\"" >	|
 
     /** Reals: */
-    <REAL_LITERAL : ([ "+", "-" ])? (["0"-"9"])+ ( "." (["0"-"9"])+ ("R"|"r") )? >
+    <REAL_LITERAL : ([ "+", "-" ])? (["0"-"9"])+ ( "." (["0"-"9"])+ )? ("R"|"r") >
 }
 
 TOKEN : { 
@@ -208,6 +208,7 @@ TOKEN : {
     
 	/** (return words) */
     <RETURN : "return"> |
+    <YIELD: "yield"> |
 	
 	/** (function words) */
     <CALL : "call"> |
@@ -330,10 +331,25 @@ GlobalsBlock GLOBALSSECTION( Chunk c ) : {
 } { 
     t0 = <GLOBALS> { tag ( heap, t0 ); }
     ( 
-	obj0 = TYPENAME( c ) { alloc = new GlobalsVarDecl (); alloc.valueType = obj0; }
-	t0 = <IDENTIFIER> { alloc.nameOfGlobalVar = t0.image; }
-	"="
-	obj1 = EXPR( c ) { alloc.rhs = obj1; heap.add ( alloc ); }
+	(
+	    <ARRAY>
+	    obj0 = TYPENAME ( c ) { alloc = new GlobalsVarDecl ( ); alloc.isArrayType = true; alloc.valueType = obj0;  }
+	    t0 = <IDENTIFIER> { alloc.nameOfGlobalVar = t0.image; }
+	    "["
+	    obj1 = EXPR ( c ) { alloc.rhs = obj1; }
+	    "]" { heap.add ( alloc ); }
+	) | 
+	(
+	    obj0 = TYPENAME( c ) { alloc = new GlobalsVarDecl ( ); alloc.isArrayType = false; alloc.valueType = obj0; }
+	    t0 = <IDENTIFIER> { alloc.nameOfGlobalVar = t0.image; }
+	    "=" obj1 = EXPR( c ) { alloc.rhs = obj1; heap.add ( alloc ); }
+
+	    (
+		"," { alloc = new GlobalsVarDecl ( ); alloc.isArrayType = false; alloc.valueType = obj0; }
+		t0 = <IDENTIFIER> { alloc.nameOfGlobalVar = t0.image; }
+		"=" obj1 = EXPR ( c ) { alloc.rhs = obj1; heap.add ( alloc ); }
+	    )*
+	)
     )+
     <ENDGLOBALS> { return heap; }
 }
@@ -536,6 +552,7 @@ ControlFlowStatement CFL_STMT( Chunk c ) : {
 
     obj0 = CFL_STMT_EXITWHEN( c ) { return obj0; } |
     obj0 = CFL_STMT_RAISE( c ) { return obj0; } |
+    obj0 = CFL_STMT_YIELD ( c ) { return obj0; } |
     obj0 = CFL_STMT_RETURN( c ) { return obj0; }
 }
 
@@ -663,6 +680,16 @@ RaiseStatement CFL_STMT_RAISE( Chunk c ) : {
     Token t0 = null;  Expression obj0 = null;
 }{ 
     t0 = <RAISE> { tag ( alloc, t0 ); } obj0 = EXPR ( c ) { alloc.raiseValue = obj0; return alloc; }
+}
+
+YieldStatement CFL_STMT_YIELD( Chunk c ) : {
+    YieldStatement alloc = new YieldStatement();
+    Token t0 = null; Expression obj0 = null;
+}{
+    t0 = <YIELD> { tag ( alloc, t0 ); } /* YIELD */
+    (
+	obj0 = EXPR ( c ) { alloc.yieldExpression = obj0; } /* YIELD (EXPR) */
+    )? { return alloc; }
 }
 
 ReturnStatement CFL_STMT_RETURN( Chunk c ) : { 

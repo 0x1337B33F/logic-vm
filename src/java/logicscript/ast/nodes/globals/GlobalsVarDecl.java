@@ -23,6 +23,11 @@ public class GlobalsVarDecl {
     public TypeDecl valueType;
 
     /**
+     * If the global variable declaration is an array or not
+     */
+    public boolean isArrayType;
+
+    /**
      * The initialization expression, or null if no initexpr
      */
     public Expression rhs;

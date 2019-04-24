@@ -117,25 +117,27 @@ public interface LogicScriptParserConstants {
   /** RegularExpression Id. */
   int RETURN = 64;
   /** RegularExpression Id. */
-  int CALL = 65;
+  int YIELD = 65;
   /** RegularExpression Id. */
-  int CALLVAR = 66;
+  int CALL = 66;
   /** RegularExpression Id. */
-  int SET = 67;
+  int CALLVAR = 67;
   /** RegularExpression Id. */
-  int AND = 68;
+  int SET = 68;
   /** RegularExpression Id. */
-  int OR = 69;
+  int AND = 69;
   /** RegularExpression Id. */
-  int NOT = 70;
+  int OR = 70;
   /** RegularExpression Id. */
-  int TRUE = 71;
+  int NOT = 71;
   /** RegularExpression Id. */
-  int FALSE = 72;
+  int TRUE = 72;
   /** RegularExpression Id. */
-  int IDENTIFIER = 73;
+  int FALSE = 73;
   /** RegularExpression Id. */
-  int LIBSCOPE = 74;
+  int IDENTIFIER = 74;
+  /** RegularExpression Id. */
+  int LIBSCOPE = 75;
 
   /** Lexical state. */
   int DEFAULT = 0;
@@ -211,6 +213,7 @@ public interface LogicScriptParserConstants {
     "\"endtry\"",
     "\"raise\"",
     "\"return\"",
+    "\"yield\"",
     "\"call\"",
     "\"callvar\"",
     "\"set\"",
@@ -223,9 +226,9 @@ public interface LogicScriptParserConstants {
     "<LIBSCOPE>",
     "\",\"",
     "\"*\"",
-    "\"=\"",
     "\"[\"",
     "\"]\"",
+    "\"=\"",
     "\"(\"",
     "\")\"",
     "\"~\"",
