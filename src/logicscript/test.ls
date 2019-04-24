@@ -33,6 +33,15 @@ imports
 endimports
 
 
+globals
+    
+    array integer   TestIntegerArray000 [ 16 ]
+    array integer   TestIntegerArray001	[ 8 ]
+    array real	    TestRealArray000	[ 8 ]
+
+endglobals
+
+
 function	TestBasicFunc001    takes nothing	returns nothing
     call PrintConsole ( Str_Concat( "The value of pi is approximately ", Cast_R2S ( MATH_PI ) ) )
     call PrintConsole ( Str_Concat( "The type of the value of pi is ", TypeOf ( MATH_PI ) ) )
@@ -153,3 +162,131 @@ function    TestNativeFunctionThrowsPrimitive	takes nothing returns nothing
 	call PrintConsole ( Str_Concat( "The meaning of life is ", Cast_I2S ( meaning ) ) )
     endtry
 endfunction
+
+
+/* Test global arrays: */
+
+function	TestSetGlobalArrayIntVal	takes nothing returns nothing
+    set	    TestIntegerArray000[ 0 ] = 1
+    set	    TestIntegerArray000[ 1 ] = 1
+    
+    for i in 2 to 16 by 1 do
+	set	TestIntegerArray000[ i ] = TestIntegerArray000[ i - 1 ] + TestIntegerArray000 [ i - 2 ]
+    endfor
+    
+endfunction
+
+function	TestGetGlobalArrayIntVal	takes nothing returns nothing
+    for i in 0 to 16 by 1 do
+	call PrintConsole ( Str_Concat ( Cast_I2S ( i ), Str_Concat( ": ", Cast_I2S ( TestIntegerArray000 [ i ] ) ) ) )
+    endfor
+endfunction
+
+
+/* Test yield support: */
+
+function	    TestFunctionYieldDirect	takes nothing returns nothing
+    for i in 0 to 5 by 1 do
+	yield i
+    endfor
+endfunction
+
+
+/* Test coroutines: */
+
+function	CoFuncReturnsValue	    takes nothing returns string
+    return "invoke from coroutine wrapper"
+endfunction
+
+function	CoFuncYieldsValues	    takes nothing returns nothing
+    yield "correct"
+    yield "battery"
+    yield "horse"
+    yield "staple"
+endfunction
+
+function	CoFuncReturnsYieldsValues   takes nothing returns nothing
+    yield "apple"
+    yield "orange"
+    yield "tomato"
+    return "fruits?"
+endfunction
+
+function	CoFuncRaisesError	    takes nothing returns nothing
+    raise "raised error from coroutine"
+endfunction
+
+imports
+	type coroutine
+	function Coroutine_Create, Coroutine_IsComplete, Coroutine_GetSResult, Coroutine_IsError, Coroutine_ThrowError, Coroutine_GetError
+    from root.coroutine
+endimports
+
+function	TestCoFuncCaptureError	    takes nothing returns nothing
+    local coroutine co = Coroutine_Create ( function CoFuncRaisesError )
+    
+    loop
+	exitwhen Coroutine_IsComplete ( co )
+	
+	call Coroutine_Step ( co )
+    endloop
+
+    if Coroutine_IsError ( co ) then
+	call PrintConsole ( Str_Concat( "Coroutine error: ", Coroutine_GetError ( co ) ) )
+    endif
+endfunction
+
+
+endfunction
+
+function	TestCoFuncCall		    takes nothing returns nothing
+    local coroutine co0 = Coroutine_Create ( function CoFuncReturnsYieldsValues )
+    local coroutine co1 = Coroutine_Create ( function CoFuncYieldsValues )
+
+    local string yielded
+
+    call PrintConsole ( "async start ")
+
+    loop
+	exitwhen Coroutine_IsComplete ( co0 ) and Coroutine_IsComplete ( co1 )
+	
+	if not Coroutine_IsComplete ( co0 ) then  call Coroutine_Step ( co0 ) endif
+	if not Coroutine_IsComplete ( co1 ) then  call Coroutine_Step ( co1 ) endif
+	
+	if not Coroutine_IsComplete ( co0 ) then
+	    set yielded = Coroutine_GetSResult ( co0 )
+	    call PrintConsole ( Str_Concat ( "Yield 0: ", yielded ) )
+	else
+	    set yielded = Coroutine_GetSResult ( co0 )
+	    call PrintConsole ( Str_Concat ( "Complete 0: ", yielded ) )
+	endif
+
+	if not Coroutine_IsComplete ( co1 ) then
+	    set yielded = Coroutine_GetSResult ( co1 )
+	    call PrintConsole ( Str_Concat ( "Yield 1: ", yielded ) )
+	endif
+
+    endloop
+
+    call PrintConsole ( "async done" )
+
+endfunction
+
+
+/* Test type safety: */
+
+function	TestHandleTypeCasting	    takes nothing returns nothing
+    local coroutine co
+    local handle ptr
+    local coroutine other
+
+    set co = Coroutine_Create ( function CoFuncReturnsValue )
+    set ptr = co
+    set other = ptr
+    
+    call PrintConsole ( Str_Concat ( "The type of ptr after assignment is ", TypeOf ( ptr ) ) )
+    call PrintConsole ( Str_Concat ( "ptr instanceof coroutine? ", Cast_B2S ( InstanceOf ( ptr, "coroutine" ) ) ) )
+    call PrintConsole ( Str_Concat ( "ptr instanceof list? ", Cast_B2S ( InstanceOf ( ptr, "list" ) ) ) )
+    call PrintConsole ( Str_Concat ( "The type of other after assignment is ", TypeOf ( other ) ) )
+endfunction
+
