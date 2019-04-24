@@ -30,7 +30,7 @@ public class BaseVMFunctionPointerImpl implements VMFunctionPointer {
     @Override
     public String returnTypeOfFunction() {
 	BytecodeFunctionDecl bytecode = this.funcImpl.bytecode();
-	return (bytecode.hasreturn()) ? this.funcImpl.closure().types().getTypeOf(bytecode.returntype()).name : "nothing";
+	return (bytecode.hasreturn()) ? this.funcImpl.closure().types().getTypeOf(bytecode.returntype()) : "nothing";
     }
 
     @Override
@@ -41,7 +41,7 @@ public class BaseVMFunctionPointerImpl implements VMFunctionPointer {
 	VMTypesTable typesTable = this.funcImpl.closure().types();
 	String[] typenames = new String[ bytecode.numargs() ];
 	for (int i = 0, j = typenames.length; i < j; i++)
-	    typenames[i] = typesTable.getTypeOf(bytecode.argtype(i)).name;
+	    typenames[i] = typesTable.getTypeOf(bytecode.argtype(i));
 	return typenames;
     }
 
