@@ -17,12 +17,14 @@ public class BaseVMGlobalsTable implements VMGlobalsTable {
     }
 
     @Override
-    public boolean defineGlobal(String nameOfGlobalValue, GlobalType typeOfGlobal, int typeOfGlobalValue, Object initialGlobalValueObject) {
+    public boolean defineGlobal(String nameOfGlobalValue, GlobalType typeOfGlobal, int typeOfGlobalValue, boolean globalIsArrayType,
+	    Object initialGlobalValueObject) {
 	if (globalBoxMap.containsKey(nameOfGlobalValue))
 	    return false;
 	GlobalBox allocBox = new GlobalBox();
 	allocBox.typeOfGlobal = typeOfGlobal;
 	allocBox.typeOfGlobalValue = typeOfGlobalValue;
+	allocBox.globalIsArrayType = globalIsArrayType;
 	allocBox.valueInGlobalBox = initialGlobalValueObject;
 	globalBoxMap.put(nameOfGlobalValue, allocBox);
 	return true;
