@@ -77,6 +77,7 @@ public class FunctionLVarDecl implements Visitable {
 
     @Override
     public void visit(ChunkVisitor v) throws Exception {
-	v.visitExpression(initialRhs);
+	if (initialRhs != null)
+	    v.visitExpression(initialRhs);
     }
 }
