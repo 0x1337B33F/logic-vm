@@ -34,6 +34,8 @@ public class GlobalsAssembler {
 	asCompiled.name = decl.nameOfGlobalVar;
 	asCompiled.type = typeCompilerMachine.getTypeNumber(decl.valueType);
 	asCompiled.globalsflags = 0; // TODO: native globals
+	if (decl.isArrayType)
+	    asCompiled.globalsflags |= LinkerObjectFile.TYPEFLAGS_GLOBAL_ISARRAY;
 	assembledGlobalsTable.put(decl, asCompiled);
 	dstLinkObj.globalsTable.add(asCompiled);
     }
