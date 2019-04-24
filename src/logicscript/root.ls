@@ -86,43 +86,32 @@ native function		PrintError	takes   string message  						returns nothing
 
 
 /* Coroutine functions: */
-native function		Coroutine_Create	takes	lambdafunc callable					returns coroutine
-native function		Coroutine_Step		takes	lambdafunc callable					returns boolean
-native function		Coroutine_InCo		takes	nothing							returns boolean
-native function		Coroutine_Current	takes	nothing							returns coroutine
 
-native function 	Coroutine_Stack		takes	coroutine co						returns integer
 
-native function		Coroutine_PushB		takes	coroutine co, boolean val				returns boolean
-native function 	Coroutine_PushI		takes	coroutine co, integer val				returns boolean
-native function 	Coroutine_PushR		takes	coroutine co, real val					returns boolean
-native function 	Coroutine_PushS		takes	coroutine co, string val				returns boolean
+/** Coroutine_Create: create a new coroutine from a callable code ref */
+native function		Coroutine_Create	takes	code callable						returns coroutine
+/** Coroutine_Step: advance coroutine until yield or error */
+native function		Coroutine_Step		takes	coroutine co						returns boolean
 
-native function		Coroutine_PopB		takes	coroutine co						returns boolean
-native function 	Coroutine_PopI		takes	coroutine co						returns integer
-native function		Coroutine_PopR		takes	coroutine co						returns real
-native function 	Coroutine_PopS		takes	coroutine co						returns string
+/** Coroutine_IsComplete: get if coroutine exited normally */
+native function		Coroutine_IsComplete	takes	coroutine co						returns boolean
+/** Coroutine_IsError: get if coroutine caught raised error */
+native function		Coroutine_IsError	takes	coroutine co						returns boolean
+/** Coroutine_ThrowError: throw error caught by coroutine to current closure */
+native function		Coroutine_ThrowError	takes	coroutine co						returns nothing
+/** Coroutine_GetError: get string of error caught by coroutine */
+native function		Coroutine_GetError	takes	coroutine co						returns string
 
-/* Macro coroutine function shorthands: */
-function 			Coroutine_SPushB 	takes	boolean val					returns boolean
-	local coroutine selfCo = Coroutine_Current()
-	return Coroutine_PushB ( selfCo, val )
-endfunction
-
-function 			Coroutine_SPushI 	takes	integer val					returns boolean
-	local coroutine selfCo = Coroutine_Current()
-	return Coroutine_PushI ( selfCo, val )
-endfunction
-
-function 			Coroutine_SPushR 	takes	real val					returns boolean
-	local coroutine selfCo = Coroutine_Current()
-	return Coroutine_PushR ( selfCo, val )
-endfunction
-
-function 			Coroutine_SPushS 	takes	string val					returns boolean
-	local coroutine selfCo = Coroutine_Current()
-	return Coroutine_PushS ( selfCo, val )
-endfunction
+/** Coroutine_GetBResult: get yielded or return result of coroutine, boolean type */
+native function		Coroutine_GetBResult	takes	coroutine co						returns boolean
+/** Coroutine_GetIResult: get yielded or return result of coroutine, integer type */
+native function		Coroutine_GetIResult	takes	coroutine co						returns integer
+/** Coroutine_GetRResult: get yielded or return result of coroutine, real type */
+native function		Coroutine_GetRResult	takes	coroutine co						returns real
+/** Coroutine_GetSResult: get yielded or return result of coroutine, string type */
+native function		Coroutine_GetSResult	takes	coroutine co						returns string
+/** Coroutine_GetHResult: get yielded or return result of coroutine, handle type */
+native function		Coroutine_GetHResult	takes	coroutine co						returns handle
 
 
 /** String functions: */
@@ -301,42 +290,23 @@ exports
 
     function 
 	    Coroutine_Create,			/** co_create: 		usercode    -> coroutine handle */
-	    Coroutine_Step,			/** co_step: 		coroutine   -> step into -> return error */
-	    Coroutine_InCo,			/** co_in_co:			    -> in coroutine? */
-	    Coroutine_Current,			/** co_get_co:			    -> get current coroutine handle */
-	    Coroutine_Stack			/** go_get_stacksz:		    -> get number of obj on co_stack */
+	    Coroutine_Step			/** co_step: 		coroutine   -> step into -> return error */
 
     function
-	    Coroutine_PushB,			/** co_stack_pushb: push boolean 	=> co_stack */
-	    Coroutine_PushI,			/** co_stack_pushi: push integer 	=> co_stack */
-	    Coroutine_PushR,			/** co_stack_pushr: push real 		=> co_stack */
-	    Coroutine_PushS			/** co_stack_pushs: push string 	=> co_stack */
+	    Coroutine_IsComplete,		/** co_is_complete:		    -> is complete ? */
+	    Coroutine_IsError,			/** co_is_error:		    -> is error ? */
+	    Coroutine_ThrowError,		/** co_throw_error:		    -> throw caught */
+	    Coroutine_GetError			/** co_get_error:		    -> string error */
 
     function
-	    Coroutine_PopB,			/** co_stack_popb:  -> pop o => checktype(o) == bool -> ret b */
-	    Coroutine_PopI,			/** co_stack_popi:  -> pop o => checktype(o) == int -> ret i */
-	    Coroutine_PopR,			/** co_stack_popr:  -> pop o => checktype(o) == real -> ret r */
-	    Coroutine_PopS			/** co_stack_pops:  -> pop o => checktype(o) == string -> ret r */
+	    Coroutine_GetBResult,		/** co_get_bool:		    -> boolean */
+	    Coroutine_GetIResult,		/** co_get_int:			    -> integer */
+	    Coroutine_GetRResult,		/** co_get_real:		    -> real */
+	    Coroutine_GetSResult,		/** co_get_string:		    -> string */
+	    Coroutine_GetHResult		/** co_get_handle:		    -> handle */
 
     as		root.coroutine
     endexports
-
-/** usage: imports function Coroutine_Create, Coroutine_Step, Coroutine_InCo, Coroutine_Current, Coroutine_Stack from root.coroutine endimports */
-/** stack_u: imports function Coroutine_PushB, Coroutine_PushI, Coroutine_PushR, Coroutine_PushS from root.coroutine endimports */
-/** stack_o: imports function Coroutine_PopB, Coroutine_PopI, Coroutine_PopR, Coroutine_PopS from root.coroutine endimports */
-
-/** The coroutine.self library: */
-exports
-    function 
-	    Coroutine_SPushB,			/** ufunc_macro of:	co_stack_pushb ( co_get_co(), v ) */
-	    Coroutine_SPushI,			/** ufunc_macro of:	co_stack_pushi ( co_get_co(), v ) */
-	    Coroutine_SPushR,			/** ufunc_macro of:	co_stack_pushr ( co_get_co(), v ) */
-	    Coroutine_SPushS			/** ufunc_macro of:	co_stack_pushs ( co_get_co(), v ) */
-
-    as root.coroutine.self
-    endexports
-
-/** stack_u.self: imports function Coroutine_SPushB, Coroutine_SPushI, Coroutine_SPushR, Coroutine_SPushS from root.coroutine.self endimports */
 
 /** The strings library: */
 exports
