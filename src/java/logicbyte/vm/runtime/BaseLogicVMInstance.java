@@ -103,7 +103,7 @@ public class BaseLogicVMInstance implements LogicVM {
     }
 
     @Override
-    public VMClosure load(final LinkerObjectFile linker) throws InterruptedException, DynamicLibraryException, VMException, UnsatisfiedImportException {
+    public VMClosure load(final VMDebugCallback callback, final LinkerObjectFile linker) throws InterruptedException, DynamicLibraryException, VMException, UnsatisfiedImportException {
 	if (linker == null)
 	    throw new IllegalArgumentException();
 	LogicBytecodeFile bytecode = this.loaderImplObj.getBytecodeFor(linker);
@@ -122,7 +122,7 @@ public class BaseLogicVMInstance implements LogicVM {
 		}
 		if (!flag)
 		    try {
-			if (load(loaderImplObj.getBytecodeFor(importsDecl.name)) == null)
+			if (load(callback, loaderImplObj.getBytecodeFor(importsDecl.name)) == null)
 			    throw new UnsatisfiedImportException(this, String.format("Could not load bytecode for import `%s`",
 				    importsDecl.name));
 		    } catch (Exception e) {
@@ -138,7 +138,7 @@ public class BaseLogicVMInstance implements LogicVM {
 	    } catch (Exception e) {
 		throw new VMException("Exception when generating closure", e);
 	    }
-	    allocClosure.load();
+	    allocClosure.load(callback);
 	    closureMap.put(linker, allocClosure);
 	    loadedObjMap.put(linker, bytecode);
 	    return allocClosure;
@@ -222,28 +222,30 @@ public class BaseLogicVMInstance implements LogicVM {
 
     protected int gettypenum(VMClosure closure, Object object) {
 	if (object == null)
-	    return 0; // NOTHING
+	    return BaseVMTypesTable.TYPENUMBER_NOTHING; // NOTHING
 	if (object instanceof VMFunctionPointer || object instanceof VMFunction)
-	    return 2; // CODE
+	    return BaseVMTypesTable.TYPENUMBER_CODE; // CODE
 	if (object instanceof Boolean || object.getClass().equals(boolean.class))
-	    return 3; // BOOLEAN
+	    return BaseVMTypesTable.TYPENUMBER_BOOLEAN; // BOOLEAN
 	if (object instanceof Integer || object.getClass().equals(int.class))
-	    return 4; // INTEGER
+	    return BaseVMTypesTable.TYPENUMBER_INTEGER; // INTEGER
 	if (object instanceof Double || object.getClass().equals(double.class))
-	    return 5; // REAL
+	    return BaseVMTypesTable.TYPENUMBER_REAL; // REAL
 	if (object instanceof String || object.getClass().equals(String.class))
-	    return 6; // STRING
+	    return BaseVMTypesTable.TYPENUMBER_STRING; // STRING
 
 	String jtypename = this.jtypeTable.reverse().get(object.getClass());
 	if (jtypename != null) {
 	    int jtypenum = closure.types().getNumberOf(jtypename);
-	    return (jtypenum != -1) ? jtypenum : 1;
+	    return (jtypenum != -1) ? jtypenum : BaseVMTypesTable.TYPENUMBER_HANDLE;
 	}
-	return 1; // HANDLE (generic type)
+	return BaseVMTypesTable.TYPENUMBER_HANDLE; // HANDLE (generic type)
     }
 
     protected boolean checkcast(int destType, int srcType) {
-	return (destType == 1) ? (srcType == 1 || srcType >= 7) : (destType == srcType);
+	return (destType == BaseVMTypesTable.TYPENUMBER_HANDLE)
+		? (srcType == BaseVMTypesTable.TYPENUMBER_HANDLE || srcType >= 7)
+		: (destType == srcType);
     }
 
     @Override
@@ -272,6 +274,16 @@ public class BaseLogicVMInstance implements LogicVM {
     @Override
     public void reset(VMInvokable inst) {
 	((BaseVMInvokableImpl) inst).reset();
+    }
+
+    @Override
+    public boolean yielded(VMInvokable inst) {
+	return ((BaseVMInvokableImpl) inst).yielded();
+    }
+
+    @Override
+    public Object yield(VMInvokable inst) {
+	return ((BaseVMInvokableImpl) inst).yieldValue();
     }
 
     protected BaseVMFunctionPointerImpl getfunc(VMClosure closure, String nameOfFunction) throws NoSuchFunctionException {
