@@ -19,4 +19,12 @@ public class UncaughtUserException extends VMException {
     public Object getUncaught() {
 	return this.uncaught;
     }
+
+    @Override
+    public String toString() {
+	if (this.uncaught instanceof String)
+	    return (String) this.uncaught;
+	return super.toString();
+    }
+
 }
