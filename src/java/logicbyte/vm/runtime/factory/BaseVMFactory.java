@@ -11,6 +11,7 @@ import logicbyte.vm.runtime.BaseLogicVMInstance;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 import logicbyte.vm.runtime.func.BaseFuncs;
 import logicbyte.vm.runtime.func.ConsoleFuncs;
+import logicbyte.vm.runtime.func.CoroutineFuncs;
 import logicbyte.vm.runtime.func.ListFuncs;
 import logicbyte.vm.runtime.func.RegexpFuncs;
 
@@ -27,6 +28,7 @@ public class BaseVMFactory implements LogicVMFactory {
 	applyStaticMethods(alloc, BaseFuncs.class);
 	ListFuncs.apply(alloc);
 	RegexpFuncs.apply(alloc);
+	CoroutineFuncs.apply(alloc);
 	return alloc;
     }
 
