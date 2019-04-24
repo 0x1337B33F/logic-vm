@@ -4,12 +4,17 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.util.LinkedList;
 import java.util.List;
 import logicbyte.bytecode.LinkerObjectFile;
 import logicbyte.bytecode.LogicBytecodeFile;
+import logicbyte.bytecode.dump.AssemblyDumper;
 import logicbyte.bytecode.stream.LinkerObjectOutputStream;
 import logicbyte.bytecode.stream.LogicBytecodeOutputStream;
+import logicbyte.bytecode.validate.BytecodeValidationException;
+import logicbyte.bytecode.validate.BytecodeValidationException.IllegalOperandException;
+import logicbyte.bytecode.validate.LinkerValidationException;
 import logicscript.assembler.writer.ChunkAssembler;
 import logicscript.ast.Chunk;
 import logicscript.parser.LogicScriptParser;
@@ -85,10 +90,16 @@ public class Compiler {
 	ChunkAssembler compiler = new ChunkAssembler();
 	LinkerObjectFile dstLinkerObj = null;
 	LogicBytecodeFile dstBytecodeObj = null;
+	boolean shouldDumpGeneratedBytecode = false;
 
 	if (options.contains("+DEBUG")) {
 	    System.out.println("Generating bytecode with debug symbols. Remove `+DEBUG` to generate without.");
 	    compiler.setShouldGenerateDebugSymbols(true);
+	}
+
+	if (options.contains("+DUMP")) {
+	    System.out.println("Dumping bytecode to dump-files for debugging. Remove `+DUMP` to disable.");
+	    shouldDumpGeneratedBytecode = true;
 	}
 
 	LinkerObjectOutputStream linkerWriterObj = null;
@@ -96,7 +107,11 @@ public class Compiler {
 
 	for (File file : srcs)
 	    if (file.isFile()) {
-		System.out.print(String.format("Compiling `%s`... ", file.getName()));
+
+		String baseName = file.getName();
+		baseName = baseName.substring(0, baseName.lastIndexOf("."));
+
+		System.out.print(String.format("Compiling `%s`... ", baseName));
 		try {
 		    fis = new FileInputStream(file);
 		    dstChunkObj = new Chunk();
@@ -108,7 +123,7 @@ public class Compiler {
 
 		    parser.SCRIPT(dstChunkObj);
 		} catch (Exception e) {
-		    System.err.println(String.format("Error when parsing file `%s`:", file));
+		    System.err.println(String.format("Error when parsing file `%s`:", baseName));
 		    e.printStackTrace(System.err);
 		    continue;
 		} finally {
@@ -123,28 +138,60 @@ public class Compiler {
 		    dstLinkerObj = new LinkerObjectFile();
 		    dstBytecodeObj = new LogicBytecodeFile();
 		    compiler.assembleChunk(dstChunkObj, dstLinkerObj, dstBytecodeObj);
+		} catch (LinkerValidationException e) {
+		    System.err.println(String.format("Error when compiling file `%s`:", baseName));
+		    e.printStackTrace(System.err);
+		} catch (BytecodeValidationException e) {
+		    System.err.println(String.format("Error when compiling file `%s`:", baseName));
+		    e.printStackTrace(System.err);
+
+		    if (e instanceof IllegalOperandException) {
+			IllegalOperandException ioe = (IllegalOperandException) e;
+			System.err.println(String.format("\t at function `%s`, operand: %s, %s", ioe.getFunction().name(), ioe.
+				getOpcodeAddress(), ioe.getOpcode()));
+		    }
+
 		} catch (Exception e) {
-		    System.err.println(String.format("Error when compiling file `%s`:", file));
+		    System.err.println(String.format("Error when compiling file `%s`:", baseName));
 		    e.printStackTrace(System.err);
 		}
 
 		try {
 		    FileOutputStream fos = null;
-		    linkerWriterObj = new LinkerObjectOutputStream((OutputStream) (fos = new FileOutputStream(new File(outputDir, file.
-			    getName() + ".o"))));
+		    linkerWriterObj = new LinkerObjectOutputStream((OutputStream) (fos = new FileOutputStream(new File(outputDir,
+			    baseName + ".o"))));
 		    linkerWriterObj.writeLinkerObject(dstLinkerObj);
 		    linkerWriterObj.closeWrapper();
 		    linkerWriterObj = null;
 		    fos.flush();
 		    fos.close();
 
-		    bytecodeWriterObj = new LogicBytecodeOutputStream((OutputStream) (fos = new FileOutputStream(new File(outputDir, file.
-			    getName() + ".lb"))));
+		    bytecodeWriterObj = new LogicBytecodeOutputStream((OutputStream) (fos = new FileOutputStream(new File(outputDir,
+			    baseName + ".lb"))));
 		    bytecodeWriterObj.writeBytecodeFile(dstBytecodeObj);
 		    bytecodeWriterObj.closeWrapper();
 		    bytecodeWriterObj = null;
 		    fos.flush();
 		    fos.close();
+
+		    if (shouldDumpGeneratedBytecode) {
+			fos = new FileOutputStream(new File(outputDir, baseName + ".od"));
+			PrintWriter writer = new PrintWriter(fos);
+			AssemblyDumper.dump(dstLinkerObj, writer);
+			writer.flush();
+			writer.close();
+			fos.flush();
+			fos.close();
+
+			fos = new FileOutputStream(new File(outputDir, baseName + ".lbd"));
+			writer = new PrintWriter(fos);
+			AssemblyDumper.dump(dstBytecodeObj, writer);
+			writer.flush();
+			writer.close();
+			fos.flush();
+			fos.close();
+		    }
+
 		} catch (Exception e) {
 		    System.err.println(String.format("Error when writing compiled linker and bytecode for file `%s`:", file));
 		    e.printStackTrace(System.err);
