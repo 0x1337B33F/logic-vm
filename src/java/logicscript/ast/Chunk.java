@@ -7,6 +7,7 @@ import logicscript.ast.nodes.decl.FunctionDecl;
 import logicscript.ast.nodes.decl.TypeDecl;
 import logicscript.ast.nodes.decl.TypeDecl.TypeDeclType;
 import logicscript.ast.nodes.globals.GlobalsBlock;
+import logicscript.ast.nodes.globals.GlobalsVarDecl;
 import logicscript.ast.nodes.importexport.LibraryBlock;
 import logicscript.ast.nodes.importexport.LibraryReference;
 import logicscript.ast.nodes.importexport.LibraryReference.LibraryReferenceType;
@@ -61,7 +62,7 @@ public class Chunk implements Visitable {
      * List of all user function declarations
      */
     public List<FunctionDecl> ufuncDecls;
-
+    
     @Override
     public void visit(ChunkVisitor v) throws Exception {
 	if (libImportsDecls != null)
@@ -70,35 +71,44 @@ public class Chunk implements Visitable {
 		while (itx.hasNext())
 		    v.visitImportDecl(itx.next());
 	    }
-
+	
 	if (libExportsDecls != null)
 	    synchronized ( libExportsDecls ) {
 		Iterator<LibraryBlock> itx = libExportsDecls.iterator();
 		while (itx.hasNext())
 		    v.visitExportDecl(itx.next());
 	    }
-
+	
 	if (globalsDecls != null)
 	    synchronized ( globalsDecls ) {
 		Iterator<GlobalsBlock> itx = globalsDecls.iterator();
-		while (itx.hasNext())
-		    v.visitGlobalsDecl(itx.next());
+		while (itx.hasNext()) {
+		    GlobalsBlock block = itx.next();
+		    v.visitGlobalsDecl(block);
+		    Iterator<GlobalsVarDecl> itx1 = block.iterator();
+		    while (itx1.hasNext()) {
+			GlobalsVarDecl decl = itx1.next();
+			v.visitGlobalsVarDecl(decl);
+			if (decl.rhs != null)
+			    v.visitExpression(decl.rhs);
+		    }
+		}
 	    }
-
+	
 	if (utypeDecls != null)
 	    synchronized ( utypeDecls ) {
 		Iterator<TypeDecl> itx = utypeDecls.iterator();
 		while (itx.hasNext())
 		    v.visitTypeDecl(itx.next());
 	    }
-
+	
 	if (nfuncDecls != null)
 	    synchronized ( nfuncDecls ) {
 		Iterator<FunctionDecl> itx = nfuncDecls.iterator();
 		while (itx.hasNext())
 		    v.visitNFuncDecl(itx.next());
 	    }
-
+	
 	if (ufuncDecls != null)
 	    synchronized ( ufuncDecls ) {
 		Iterator<FunctionDecl> itx = ufuncDecls.iterator();
@@ -230,14 +240,14 @@ public class Chunk implements Visitable {
 	 */
 	TypeDecl syntheticGenerated = new TypeDecl(TypeDeclType.UNRESOLVED_TYPE);
 	syntheticGenerated.typeName = name;
-
+	
 	if (this.mtypeDecls == null)
 	    this.mtypeDecls = new LinkedList<>();
-
+	
 	synchronized ( this.mtypeDecls ) {
 	    this.mtypeDecls.add(syntheticGenerated);
 	}
 	return syntheticGenerated;
     }
-
+    
 }

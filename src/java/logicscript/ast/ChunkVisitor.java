@@ -5,6 +5,7 @@ import logicscript.ast.nodes.decl.FunctionLVarDecl;
 import logicscript.ast.nodes.decl.TypeDecl;
 import logicscript.ast.nodes.expr.Expression;
 import logicscript.ast.nodes.globals.GlobalsBlock;
+import logicscript.ast.nodes.globals.GlobalsVarDecl;
 import logicscript.ast.nodes.importexport.LibraryBlock;
 import logicscript.ast.nodes.stmt.Block;
 import logicscript.ast.nodes.stmt.Statement;
@@ -33,6 +34,8 @@ public interface ChunkVisitor {
     public void visitExportDecl(LibraryBlock b) throws Exception;
 
     public void visitGlobalsDecl(GlobalsBlock b) throws Exception;
+
+    public void visitGlobalsVarDecl(GlobalsVarDecl d) throws Exception;
 
     public void visitTypeDecl(TypeDecl t) throws Exception;
 
