@@ -2,17 +2,24 @@ package logicscript.assembler.writer;
 
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import logicbyte.bytecode.LinkerObjectFile;
 import logicbyte.bytecode.LogicBytecodeFile;
+import logicbyte.bytecode.Opcode;
+import logicbyte.bytecode.Opcode.OpcodeControlBitmask;
+import logicbyte.bytecode.Opcode.Opcodes;
+import logicbyte.bytecode.validate.LogicBytecodeValidator;
 import logicscript.ast.Chunk;
 import logicscript.ast.nodes.decl.FunctionDecl;
 import logicscript.ast.nodes.decl.FunctionDecl.FunctionDeclType;
+import logicscript.ast.nodes.decl.FunctionLVarDecl;
 import logicscript.ast.nodes.decl.TypeDecl;
 import logicscript.ast.nodes.globals.GlobalsBlock;
 import logicscript.ast.nodes.globals.GlobalsVarDecl;
 import logicscript.ast.nodes.importexport.LibraryBlock;
 import logicscript.ast.nodes.importexport.LibraryReference;
 import logicscript.ast.nodes.stmt.Block;
+import logicscript.ast.nodes.stmt.DirectAssembly;
 import logicscript.ast.nodes.stmt.ef.SetVariableStatement;
 
 /**
@@ -38,6 +45,11 @@ public class ChunkAssembler {
      */
     final GlobalsAssembler globalsMachine = new GlobalsAssembler();
 
+    /**
+     * The validator instance
+     */
+    final LogicBytecodeValidator validator = new LogicBytecodeValidator();
+
     public ChunkAssembler() {
 
     }
@@ -58,6 +70,7 @@ public class ChunkAssembler {
 	typeMachine.reset();
 	functionMachine.reset();
 	globalsMachine.reset();
+	validator.reset();
     }
 
     /**
@@ -92,6 +105,8 @@ public class ChunkAssembler {
 	assembleChunkGlobalBytecodeData(dstLinkObj, dstFnAssembleObj, codeChunk);
 	assembleChunkBytecodeData(dstLinkObj, dstFnAssembleObj, codeChunk);
 	assembleChunkLinkerExportData(dstLinkObj, codeChunk);
+
+	validator.validate(dstLinkObj, dstFnAssembleObj);
     }
 
     /**
@@ -166,17 +181,56 @@ public class ChunkAssembler {
 	    }
 
 	    Block block = new Block();
+	    FunctionLVarDecl scratchIntVar = new FunctionLVarDecl("arraySize", TypeDecl.TYPE_INTEGER);
+	    int scratchIntVarSlot = 0, scratchClosureFirstLocal = 1;
+	    if (globalInitFn != null) {
+		globalInitFn.lvars.add(0, scratchIntVar);
+		scratchIntVarSlot = globalInitFn.paramTypes.size();
+		scratchClosureFirstLocal = globalInitFn.paramTypes.size() + globalInitFn.lvars.size();
+	    }
 
 	    Iterator<GlobalsBlock> itx1 = codeChunk.globalsDecls.iterator();
 	    while (itx1.hasNext()) {
 		Iterator<GlobalsVarDecl> itx2 = itx1.next().iterator();
 		while (itx2.hasNext()) {
 		    GlobalsVarDecl decl = itx2.next();
-		    if (decl.rhs != null) {
+		    if (!decl.isArrayType && decl.rhs != null) {
 			SetVariableStatement allocSetVarNode = new SetVariableStatement();
 			allocSetVarNode.nameOfLocalVar = decl.nameOfGlobalVar;
 			allocSetVarNode.rhs = decl.rhs;
 			block.add(allocSetVarNode);
+		    } else if (decl.isArrayType) {
+			DirectAssembly allocDirectAsmNode = new DirectAssembly();
+			List<Opcode> oplist;
+			allocDirectAsmNode.opcodes = oplist = new LinkedList<>();
+
+			SetVariableStatement allocSetArrayVarNode = new SetVariableStatement();
+			allocSetArrayVarNode.nameOfLocalVar = scratchIntVar.nameOfLocalVar;
+			allocSetArrayVarNode.rhs = decl.rhs;
+			block.add(allocSetArrayVarNode);
+
+			oplist.add(Opcodes.INCLOSURE);
+
+			List<Object> getlocalParams = new LinkedList<>();
+			getlocalParams.add(scratchIntVarSlot);
+			oplist.add(new OpcodeControlBitmask(Opcodes.GETLOCAL, getlocalParams));
+
+			List<Object> newupvarParams = new LinkedList<>();
+			newupvarParams.add(typeMachine.getTypeNumber(decl.valueType));
+			newupvarParams.add(scratchClosureFirstLocal);
+			oplist.add(new OpcodeControlBitmask(Opcodes.NEWUPVAR, Opcodes.BITMASK_NEWUPVAR_ARRAY, newupvarParams));
+
+			getlocalParams = new LinkedList<>();
+			getlocalParams.add(scratchClosureFirstLocal);
+			oplist.add(new OpcodeControlBitmask(Opcodes.GETLOCAL, getlocalParams));
+
+			List<Object> setglobalParams = new LinkedList<>();
+			setglobalParams.add(decl.nameOfGlobalVar);
+			oplist.add(new OpcodeControlBitmask(Opcodes.SETGLOBAL, setglobalParams));
+
+			oplist.add(Opcodes.ENDCLOSURE);
+
+			block.add(allocDirectAsmNode);
 		    }
 		}
 	    }
@@ -185,6 +239,7 @@ public class ChunkAssembler {
 		globalInitFn = new FunctionDecl(FunctionDeclType.USER);
 		globalInitFn.returnType = TypeDecl.TYPE_NOTHING;
 		globalInitFn.lvars = new LinkedList<>();
+		globalInitFn.lvars.add(scratchIntVar);
 		globalInitFn.paramNames = new LinkedList<>();
 		globalInitFn.paramTypes = new LinkedList<>();
 		globalInitFn.name = "<ginit>";
