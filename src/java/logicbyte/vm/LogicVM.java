@@ -18,7 +18,8 @@ public interface LogicVM {
      * searched for using the library loader specified and loaded into the current virtual machine, creating as many global scope(s) as
      * required.
      *
-     * @param linker The linker to load
+     * @param callback The debugger callback
+     * @param linker   The linker to load
      *
      * @return The created global closure object
      *
@@ -30,7 +31,7 @@ public interface LogicVM {
      * @throws logicbyte.vm.exception.UnsatisfiedImportException If the linker, or a dependent linker references an unresolvable symbol, a
      *                                                           {@link UnsatisfiedImportException} will be thrown.
      */
-    public VMClosure load(final LinkerObjectFile linker) throws InterruptedException,
+    public VMClosure load(final VMDebugCallback callback, final LinkerObjectFile linker) throws InterruptedException,
 	    DynamicLibraryException, VMException, UnsatisfiedImportException;
 
     /**
@@ -138,5 +139,9 @@ public interface LogicVM {
     public Object result(VMInvokable inst);
 
     public void reset(VMInvokable inst);
+
+    public boolean yielded(VMInvokable inst);
+
+    public Object yield(VMInvokable inst);
 
 }
