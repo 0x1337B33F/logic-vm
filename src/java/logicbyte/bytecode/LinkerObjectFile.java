@@ -96,6 +96,7 @@ public class LinkerObjectFile {
     }
 
     public static final byte TYPEFLAGS_GLOBAL_ISNATIVE = 0b00000001;
+    public static final byte TYPEFLAGS_GLOBAL_ISARRAY = 0b00000010;
 
     /**
      * GLOBALSENTRY: entry indicating the declaration of a global.

@@ -278,7 +278,8 @@ public interface Opcode {
 	/**
 	 * BREAK: causes the current VM to stop executing instructions temporarily if a debugger attached, otherwise, wastes one cycle
 	 */
-	BREAK(0x20, false, null);
+	BREAK(0x20, false, null),
+	YIELD(0x21, true, null);
 
 	/*
 	 * we expect to be mostly doing forward lookups: don't expect the order of values() to be
@@ -400,6 +401,16 @@ public interface Opcode {
 	public static final byte BITMASK_CMP = BITMASK_CMP_CONSUME;
 
 	/**
+	 * Whether the current YIELD statement will yield the stack value or not
+	 */
+	public static final byte BITMASK_YIELD_STACK = BITMASK_BIT_0;
+
+	/**
+	 * Mask used to checkbits() on YIELDs
+	 */
+	public static final byte BITMASK_YIELD = BITMASK_YIELD_STACK;
+
+	/**
 	 * The system byte used to represent the opcode
 	 */
 	final byte typeword;
@@ -493,25 +504,27 @@ public interface Opcode {
 		    switch (this.argtype(i)) {
 			case BOOL_LITERAL:
 			    if (!(this.theParamValueList.get(i) instanceof Boolean))
-				throw new InstantiationException(String.format("Expected Boolean in slot %s, got %s", i,
-					this.theParamValueList.get(i).getClass().getName()));
+				throw new InstantiationException(String.
+					format("%s: Expected Boolean in slot %s, got %s", opcode().name(), i,
+						this.theParamValueList.get(i).getClass().getName()));
 			    break;
 			case INT_LITERAL:
 			case INT_PACKED:
 			    if (!(this.theParamValueList.get(i) instanceof Integer))
-				throw new InstantiationException(String.format("Expected Integer in slot %s, got %s", i,
-					this.theParamValueList.get(i).getClass().getName()));
+				throw new InstantiationException(String.
+					format("%s: Expected Integer in slot %s, got %s", opcode().name(), i,
+						this.theParamValueList.get(i).getClass().getName()));
 			    break;
 
 			case REAL_LITERAL:
 			    if (!(this.theParamValueList.get(i) instanceof Double))
-				throw new InstantiationException(String.format("Expected Double in slot %s, got %s", i,
+				throw new InstantiationException(String.format("%s: Expected Double in slot %s, got %s", opcode().name(), i,
 					this.theParamValueList.get(i).getClass().getName()));
 			    break;
 
 			case STR_LITERAL:
 			    if (!(this.theParamValueList.get(i) instanceof String))
-				throw new InstantiationException(String.format("Expected String in slot %s, got %s", i,
+				throw new InstantiationException(String.format("%s: Expected String in slot %s, got %s", opcode().name(), i,
 					this.theParamValueList.get(i).getClass().getName()));
 			    break;
 		    }
