@@ -63,6 +63,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	Stack<Pair<Integer, Integer>> functionTryCatchStack;
 
 	Object functionCaughtExceptionObj;
+	Object functionYieldObj;
 
 	boolean desiresCallResult;
     }
@@ -80,6 +81,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
     volatile VMDebugCallback debuggerObj;
 
     volatile Object invokeResult;
+
+    volatile boolean yielded;
 
     public BaseVMInvokableImpl(BaseLogicVMInstance inst, Object runLock, VMFunctionPointer entryFunc) {
 	this.instanceObj = inst;
@@ -112,13 +115,14 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    return true;
 	synchronized ( runLock ) {
 	    try {
+		yielded = false;
 		Pair<VMFunction, FunctionCallContext> env = callStack.peek();
 		exec(env.a(), env.b(), (stepDebugger != null) ? stepDebugger : debuggerObj);
 	    } catch (VMException e) {
 		throw e;
 	    }
 	}
-	return (callStack.isEmpty());
+	return (yielded || callStack.isEmpty());
     }
 
     @Override
@@ -160,6 +164,14 @@ public class BaseVMInvokableImpl implements VMInvokable {
     protected void reset() {
 	callStack.empty();
 	invokeResult = null;
+    }
+
+    protected boolean yielded() {
+	return yielded;
+    }
+
+    protected Object yieldValue() {
+	return callStack.peek().b().functionYieldObj;
     }
 
     private void callfunc(VMDebugCallback debugger, VMFunctionPointer ptr, Object[] arguments, Opcode generatingOp) throws VMException {
@@ -238,15 +250,20 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		    thrown = ((UncaughtUserException) ite.getCause()).getUncaught();
 		else if (ite.getCause() instanceof VMException)
 		    throw (VMException) ite.getCause();
+		else
+		    thrown = ite.getCause();
 	    } catch (ThrowObjectException thrownObject) {
 		thrown = thrownObject.getThrown();
+	    } catch (Exception uncaughtGeneral) {
+		thrown = uncaughtGeneral;
 	    }
 
 	    if (thrown != null) {
 		/* unwind the native function manually: */
 		if (callStack.pop() != nativeContext)
 		    throw new VMException("native stack unwind failure");
-		debugger.unwindfunc(this, callStack.peek().a(), ptr, thrown);
+		if (debugger != null)
+		    debugger.unwindfunc(this, callStack.peek().a(), ptr, thrown);
 		__raise(debugger, callStack.peek().b(), thrown);
 	    }
 
@@ -328,6 +345,9 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		case RETN:
 		    exec__RETN(func, boundary, op, debugger);
 		    break;
+		case YIELD:
+		    exec__YIELD(func, boundary, op, debugger);
+		    break;
 
 		case CALL:
 		    exec__CALL(func, boundary, op, debugger);
@@ -351,7 +371,6 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		    break;
 		case ENDCLOSURE:
 		    exec__ENDCLOSURE(func, boundary, op, debugger);
-		    boundary.functionClosureStack.pop();
 		    break;
 
 		case NEWUPVAR:
@@ -420,7 +439,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void __throw(String message) throws VMException {
-	throw new VMException(instanceObj, null, message, null);
+	throw new VMException(instanceObj, (!callStack.isEmpty()) ? callStack.peek().a().closure() : null, message, null);
     }
 
     private <T> T __getoparg(Opcode o, int slot, Class<? extends T> klazz) throws VMException {
@@ -439,11 +458,9 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
     private Closure __getclosure(FunctionCallContext boundary, int local) {
 	Closure closure = boundary.functionClosureStack.peek();
-	int index = 0;
-	while (closure != null && closure.startOfClosureLocals > local) {
-	    index++;
-	    closure = boundary.functionClosureStack.get(index);
-	}
+	int index = boundary.functionClosureStack.size() - 1;
+	while (closure != null && closure.startOfClosureLocals > local)
+	    closure = boundary.functionClosureStack.get(--index);
 	return closure;
     }
 
@@ -455,6 +472,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (local < 0)
 	    __throw("cannot getlocal on a non-allocated lvar slot");
 	Object obj = closure.valuesOfClosureLocals.get(local);
+	if (obj == null)
+	    __throw(String.format("cannot dereference null local in slot %s", local));
 	if (!klazz.isAssignableFrom(obj.getClass()))
 	    __throw(String.format("Local value %s is not of type %s", obj.getClass().getName(), klazz.getName()));
 	return (T) obj;
@@ -568,6 +587,16 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    exitfunc(debugger, func, null);
     }
 
+    private void exec__YIELD(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
+	if (o.getopt(Opcodes.BITMASK_YIELD_STACK)) {
+	    boundary.functionYieldObj = boundary.functionStackStack.pop();
+	    yielded = true;
+	} else {
+	    boundary.functionYieldObj = null;
+	    yielded = true;
+	}
+    }
+
     private void exec__CALL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	String fnName = __getoparg(o, 0, String.class);
 	int numArgs = __getoparg(o, 1, Integer.class);
@@ -599,7 +628,23 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void exec__CALLGLOBAL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	throw new UnsupportedOperationException("CALLGLOBAL");
+	String globalName = __getoparg(o, 0, String.class);
+	int numArgs = __getoparg(o, 1, Integer.class);
+	Object[] argvals = new Object[ numArgs ];
+	for (int i = (numArgs - 1); i >= 0; i--)
+	    argvals[i] = boundary.functionStackStack.pop();
+
+	GlobalBox globalBox = instanceObj.getglobal(func.closure(), globalName);
+	if (globalBox == null)
+	    __throw(String.format("CALLGLOBAL: no such global %s", globalName));
+
+	if (instanceObj.checkcast(BaseVMTypesTable.TYPENUMBER_CODE, globalBox.typeOfGlobalValue))
+	    __throw(String.format("CALLGLOBAL: global not code type"));
+
+	VMFunctionPointer ptr = (VMFunctionPointer) globalBox.valueInGlobalBox;
+
+	boundary.desiresCallResult = o.getopt(Opcodes.BITMASK_CALLGLOBAL_RVAL);
+	callfunc(debugger, ptr, argvals, o);
     }
 
     private void exec__BINOP(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
@@ -998,7 +1043,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void exec__ENDCLOSURE(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	boundary.functionClosureStack.pop();
+	Closure exitClosure = boundary.functionClosureStack.pop();
+	if (exitClosure == callStack.peek().b().functionClosureObj)
+	    __throw("ENDCLOSURE: exited the function root closure");
+	if (boundary.functionClosureStack.isEmpty())
+	    __throw("ENDCLOSURE: the function closure stack is empty");
     }
 
     private void exec__NEWUPVAR(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
@@ -1008,9 +1057,18 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	int ptr = currentClosure.startOfClosureLocals + currentClosure.numberOfClosureLocals;
 	currentClosure.numberOfClosureLocals++;
 	if (ptr != __getoparg(o, 1, Integer.class))
-	    __throw(String.format("NEWUPVAR: new upvar defined in slot %s does not match expected lvar slot %s", ptr, __getoparg(o, 1, Integer.class)));
+	    __throw(String.format("NEWUPVAR: new upvar defined in slot %s does not match expected lvar slot %s", ptr, __getoparg(o, 1,
+		    Integer.class)));
 	currentClosure.typesOfClosureLocals.add(__getoparg(o, 0, Integer.class));
-	currentClosure.valuesOfClosureLocals.add(null);
+
+	if (o.getopt(Opcodes.BITMASK_NEWUPVAR_ARRAY)) {
+	    Array allocArrayBox = new Array();
+	    allocArrayBox.typeOfArray = __getoparg(o, 0, Integer.class);
+	    allocArrayBox.sizeOfArray = __getstackval(boundary, Integer.class);
+	    allocArrayBox.arrayValues = new Object[ allocArrayBox.sizeOfArray ];
+	    currentClosure.valuesOfClosureLocals.add(allocArrayBox);
+	} else
+	    currentClosure.valuesOfClosureLocals.add(null);
     }
 
     private void exec__NEWARRAY(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
@@ -1048,13 +1106,23 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    throw new IllegalStateException("SETGLOBAL: cannot set native global");
 
 	Object newValueInBox = __getstackval(boundary, Object.class);
-	int typeOfNewValueInBox = instanceObj.gettypenum(func.closure(), newValueInBox);
 
-	if (typeOfNewValueInBox != globalBox.typeOfGlobalValue)
-	    throw new IllegalStateException(String.format("SETGLOBAL: global with type %s cannot contain value of type %s",
-		    globalBox.typeOfGlobalValue, typeOfNewValueInBox));
+	if (newValueInBox instanceof Array) {
+	    if (!globalBox.globalIsArrayType)
+		throw new IllegalStateException(String.format("SETGLOBAL: cannot set literal global to array value"));
 
-	globalBox.valueInGlobalBox = newValueInBox;
+	    Array assignArrayObj = (Array) newValueInBox;
+	    if (assignArrayObj.typeOfArray != globalBox.typeOfGlobalValue)
+		throw new IllegalStateException(String.format("SETGLOBAL: global with array-type %s cannot contain array-value of type %s",
+			globalBox.typeOfGlobalValue, assignArrayObj.typeOfArray));
+	    globalBox.valueInGlobalBox = newValueInBox;
+	} else {
+	    int typeOfNewValueInBox = instanceObj.gettypenum(func.closure(), newValueInBox);
+	    if (typeOfNewValueInBox != globalBox.typeOfGlobalValue)
+		throw new IllegalStateException(String.format("SETGLOBAL: global with type %s cannot contain value of type %s",
+			globalBox.typeOfGlobalValue, typeOfNewValueInBox));
+	    globalBox.valueInGlobalBox = newValueInBox;
+	}
 
     }
 
@@ -1070,7 +1138,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    return;
 	}
 	if (0 > arrayIdx || arrayIdx >= arrayPtr.sizeOfArray) {
-	    __raise(debugger, boundary, "array index out of bounds");
+	    __raise(debugger, boundary, String.format("array index %s out of bounds", arrayIdx));
 	    return;
 	}
 
@@ -1084,7 +1152,39 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void exec__SETGLOBALARR(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	throw new UnsupportedOperationException("SETGLOBALARR");
+	int arrayIdx = __getstackval(boundary, Integer.class);
+	Object assignVal = __getstackval(boundary, Object.class);
+	String globalName = __getoparg(o, 0, String.class);
+
+	GlobalBox globalBox = instanceObj.getglobal(func.closure(), globalName);
+	if (globalBox == null)
+	    __throw(String.format("SETGLOBALARR: no such global %s", globalName));
+
+	if (globalBox.typeOfGlobal == GlobalType.NATIVEGLOBAL)
+	    __throw(String.format("SETGLOBALARR: cannot set native global"));
+
+	if (!globalBox.globalIsArrayType || !(globalBox.valueInGlobalBox instanceof Array))
+	    throw new IllegalStateException(String.format("GETGLOBALARR: global %s is not array type", globalName));
+
+	Array arrayPtr = (Array) globalBox.valueInGlobalBox;
+
+	if (arrayPtr == null) {
+	    __raise(debugger, boundary, "array not initialized");
+	    return;
+	}
+	if (0 > arrayIdx || arrayIdx >= arrayPtr.sizeOfArray) {
+	    __raise(debugger, boundary, String.format("array index %s out of bounds", arrayIdx));
+	    return;
+	}
+
+	int typeOfAssignVal = instanceObj.gettypenum(func.closure(), assignVal);
+	if (typeOfAssignVal != arrayPtr.typeOfArray) {
+	    __raise(debugger, boundary, String.format("array type %s cannot contain values of type %s", arrayPtr.typeOfArray,
+		    typeOfAssignVal));
+	    return;
+	}
+	arrayPtr.arrayValues[arrayIdx] = assignVal;
+
     }
 
     private void exec__GETLOCAL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
@@ -1127,7 +1227,21 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void exec__GETGLOBALARR(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	throw new UnsupportedOperationException("GETGLOBALARR");
+	String globalName = __getoparg(o, 0, String.class);
+	int globalArrayIndex = __getstackval(boundary, Integer.class);
+
+	GlobalBox globalBox = instanceObj.getglobal(func.closure(), globalName);
+	if (globalBox == null)
+	    throw new IllegalStateException(String.format("GETGLOBALARR: no such global %s", globalName));
+
+	if (!globalBox.globalIsArrayType || !(globalBox.valueInGlobalBox instanceof Array))
+	    throw new IllegalStateException(String.format("GETGLOBALARR: global %s is not array type", globalName));
+	Array globalArrayObj = (Array) globalBox.valueInGlobalBox;
+	if ((globalBox.typeOfGlobalValue == 1 || globalBox.typeOfGlobalValue >= 7) && globalArrayObj.arrayValues[globalArrayIndex] == null) {
+	    __raise(debuggerObj, boundary, "attempt to dereference null handle pointer");
+	    return;
+	}
+	boundary.functionStackStack.push(globalArrayObj.arrayValues[globalArrayIndex]);
     }
 
     private void exec__DEBUG(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
