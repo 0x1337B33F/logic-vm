@@ -17,7 +17,7 @@ import logicbyte.vm.exception.VMException;
  */
 public interface VMClosure {
 
-    public void load() throws InterruptedException, VMException;
+    public void load( final VMDebugCallback callback ) throws InterruptedException, VMException;
 
     public VMGlobalsTable globals();
 
