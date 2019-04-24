@@ -10,6 +10,8 @@ import logicbyte.bytecode.LinkerObjectFile.ImportsEntry;
 import logicbyte.bytecode.LinkerObjectFile.TypesEntry;
 import logicbyte.bytecode.LogicBytecodeFile;
 import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDecl;
+import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDecl.DebugLocationSegment;
+import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDecl.DebugSegment;
 import logicbyte.bytecode.Opcode;
 
 /**
@@ -155,11 +157,43 @@ public class AssemblyDumper {
 		output.print(String.format("\t\t\t%s: %s ", i, memonic.toString()));
 		if (opcode.hasopts())
 		    output.print(String.format("(%s) ", opcode.getopts()));
-		
+
 		if (opcode.args() != 0)
 		    for (int k = 0, l = opcode.args(); k < l; k++)
 			output.print(String.format("\t%s", opcode.argobject(k)));
 		output.println(";");
+	    }
+	}
+
+	if (decl.hasdebug())
+	    dumpFunctionDeclDebug(decl.debug(), output);
+    }
+
+    public static void dumpFunctionDeclDebug(DebugSegment debug, PrintWriter output) {
+	output.print("\t\tDebugInfo{");
+	output.print((debug.hasargnames()) ? "has argnames, " : "no argnames, ");
+	output.print((debug.haslocalnames()) ? "has localnames, " : "no localnames, ");
+	output.print((debug.haslocations()) ? "has locations" : "no locations");
+	output.println("}:");
+
+	if (debug.hasargnames()) {
+	    output.println("\t\t\targuments:");
+	    for (int i = 0, j = debug.numargnames(); i < j; i++)
+		output.println(String.format("\t\t\t\t%s: %s", i, debug.argname(i)));
+	}
+
+	if (debug.haslocalnames()) {
+	    output.println("\t\t\tlocals:");
+	    for (int i = 0, j = debug.numlocalnames(); i < j; i++)
+		output.println(String.format("\t\t\t\t%s: %s", i, debug.localname(i)));
+	}
+
+	if (debug.haslocations()) {
+	    output.println("\t\t\tlocations:");
+	    for (int i = 0, j = debug.numlocations(); i < j; i++) {
+		output.print(String.format("\t\t\t\t%s: addr %s, ", i, debug.locaddr(i)));
+		DebugLocationSegment seg = debug.loctag(i);
+		output.println(String.format("line %s, col %s", seg.line, seg.col));
 	    }
 	}
     }
