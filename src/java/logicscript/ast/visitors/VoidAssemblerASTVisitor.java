@@ -7,6 +7,7 @@ import logicscript.ast.nodes.decl.FunctionLVarDecl;
 import logicscript.ast.nodes.decl.TypeDecl;
 import logicscript.ast.nodes.expr.Expression;
 import logicscript.ast.nodes.globals.GlobalsBlock;
+import logicscript.ast.nodes.globals.GlobalsVarDecl;
 import logicscript.ast.nodes.importexport.LibraryBlock;
 import logicscript.ast.nodes.stmt.Block;
 import logicscript.ast.nodes.stmt.Statement;
@@ -27,6 +28,12 @@ public class VoidAssemblerASTVisitor extends AbstractAssemblerASTVisitor {
 
     @Override
     public void visitGlobalsDecl(GlobalsBlock b) throws Exception {
+	// void
+
+    }
+
+    @Override
+    public void visitGlobalsVarDecl(GlobalsVarDecl next) throws Exception {
 	// void
 
     }

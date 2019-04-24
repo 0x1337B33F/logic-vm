@@ -6,7 +6,9 @@ import logicscript.ast.nodes.decl.FunctionDecl;
 import logicscript.ast.nodes.decl.FunctionLVarDecl;
 import logicscript.ast.nodes.decl.TypeDecl;
 import logicscript.ast.nodes.expr.Expression;
+import logicscript.ast.nodes.expr.LiteralValue;
 import logicscript.ast.nodes.globals.GlobalsBlock;
+import logicscript.ast.nodes.globals.GlobalsVarDecl;
 import logicscript.ast.nodes.importexport.LibraryBlock;
 import logicscript.ast.nodes.stmt.Block;
 import logicscript.ast.nodes.stmt.Statement;
@@ -45,6 +47,11 @@ public class PrintTreeVisitor extends AbstractAssemblerASTVisitor {
     }
 
     @Override
+    public void visitGlobalsVarDecl(GlobalsVarDecl d) {
+	printf("GlobalsVarDecl: %s, type %s, %s", d.nameOfGlobalVar, d.valueType, (d.isArrayType) ? "array" : "literal");
+    }
+
+    @Override
     public void visitTypeDecl(TypeDecl t) {
 	printf("TypeDecl: (%s): %s => %s, %s", t.type, t.typeName, t.ancestorTypeName, t.location);
     }
@@ -69,7 +76,8 @@ public class PrintTreeVisitor extends AbstractAssemblerASTVisitor {
 
     @Override
     public void onVisitFuncDeclLVar(FunctionLVarDecl vd) {
-	printf("UserFunctionLocalVarDecl: %s (type %s, %s) (at %s)", vd.nameOfLocalVar, vd.valueType, ( vd.isArrayType ) ? "array" : "value", vd.location);
+	printf("UserFunctionLocalVarDecl: %s (type %s, %s) (at %s)", vd.nameOfLocalVar, vd.valueType, (vd.isArrayType) ? "array" : "value",
+		vd.location);
 	printLevel++;
     }
 
@@ -87,7 +95,7 @@ public class PrintTreeVisitor extends AbstractAssemblerASTVisitor {
 
     @Override
     public void onVisitClosure(Closure c) throws Exception {
-	printf("Closure: %s (defines %s vars) (at %s)", c, c.numcvars());
+	printf("Closure: %s (defines %s vars)", c, c.numcvars());
 	printLevel++;
     }
 
@@ -99,14 +107,18 @@ public class PrintTreeVisitor extends AbstractAssemblerASTVisitor {
 
     @Override
     public void onVisitStatement(Statement s) {
-	printf("Statement: %s (at %s)", s, s.location);
+	printf("Statement: %s (at %s)", s, (s.location != null) ? s.location : "<unknown>");
 	printLevel++;
     }
 
     @Override
     public void onVisitExpression(Expression e) {
-	printf("Expression: %s (at %s)", e, e.location);
+	printf("Expression: %s (at %s)", e, (e.location != null) ? e.location : "<unknown>");
 	printLevel++;
+	if (e instanceof LiteralValue) {
+	    LiteralValue lv = (LiteralValue) e;
+	    printf("LiteralValue: (type %s) `%s`", lv.typeOfValue, lv.valueObject);
+	}
     }
 
     @Override
