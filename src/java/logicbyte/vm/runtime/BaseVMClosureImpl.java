@@ -5,11 +5,13 @@ import java.util.Iterator;
 import java.util.Map;
 import logicbyte.bytecode.LinkerObjectFile;
 import logicbyte.bytecode.LinkerObjectFile.GlobalsEntry;
+import logicbyte.bytecode.LinkerObjectFile.ImportsEntry;
 import logicbyte.bytecode.LinkerObjectFile.TypesEntry;
 import logicbyte.bytecode.LogicBytecodeFile;
 import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDecl;
 import logicbyte.vm.LogicVM;
 import logicbyte.vm.VMClosure;
+import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMGlobalsTable;
 import logicbyte.vm.VMGlobalsTable.GlobalType;
@@ -42,20 +44,34 @@ public class BaseVMClosureImpl implements VMClosure {
     }
 
     @Override
-    public void load() throws InterruptedException, VMException {
+    public void load(final VMDebugCallback callback) throws InterruptedException, VMException {
 	Iterator<TypesEntry> itx0 = linkerObj.typesTable.iterator();
 	while (itx0.hasNext()) {
 	    TypesEntry typeDecl = itx0.next();
-	    typesTable.defineType(typeDecl.slot, typeDecl);
+	    typesTable.defineType(typeDecl.slot, typeDecl.name);
 	}
 
 	Iterator<GlobalsEntry> itx1 = linkerObj.globalsTable.iterator();
 	while (itx1.hasNext()) {
 	    GlobalsEntry globalDecl = itx1.next();
 	    if ((globalDecl.globalsflags & LinkerObjectFile.TYPEFLAGS_GLOBAL_ISNATIVE) != 0)
-		globalsTable.defineGlobal(globalDecl.name, GlobalType.NATIVEGLOBAL, globalDecl.type, null);
+		globalsTable.defineGlobal(globalDecl.name, GlobalType.NATIVEGLOBAL, globalDecl.type,
+			(globalDecl.globalsflags & LinkerObjectFile.TYPEFLAGS_GLOBAL_ISARRAY) != 0, null);
 	    else
-		globalsTable.defineGlobal(globalDecl.name, GlobalType.USERGLOBAL, globalDecl.type, null);
+		globalsTable.defineGlobal(globalDecl.name, GlobalType.USERGLOBAL, globalDecl.type,
+			(globalDecl.globalsflags & LinkerObjectFile.TYPEFLAGS_GLOBAL_ISARRAY) != 0, null);
+	}
+
+	Iterator<ImportsEntry> itx2 = linkerObj.importsTable.iterator();
+	while (itx2.hasNext()) {
+	    ImportsEntry importsDecl = itx2.next();
+
+	    if ((importsDecl.typeflags & LinkerObjectFile.TYPEFLAGS_IMPORTS_TYPE) != 0) {
+		Iterator<String> itx3 = importsDecl.labels.iterator();
+		Iterator<Integer> itx4 = importsDecl.slots.iterator();
+		while (itx4.hasNext())
+		    typesTable.defineType(itx4.next(), itx3.next());
+	    }
 	}
 
 	BytecodeFunctionDecl[] funcs = bytecodeObj.getAll();
@@ -65,9 +81,9 @@ public class BaseVMClosureImpl implements VMClosure {
 	}
 
 	if (functionMap.containsKey("<ginit>")) {
-	    VMInvokable callable = this.executorObj.invoke(null, functionMap.get("<ginit>"));
-	    callable.invoke(null, null);
-	    while (!callable.advance(null));
+	    VMInvokable callable = this.executorObj.invoke(callback, functionMap.get("<ginit>"));
+	    callable.invoke(callback, null);
+	    while (!callable.advance(callback));
 	}
     }
 
