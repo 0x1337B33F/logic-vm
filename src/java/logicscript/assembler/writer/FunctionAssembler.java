@@ -1,6 +1,5 @@
 package logicscript.assembler.writer;
 
-import java.io.IOException;
 import java.util.EmptyStackException;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,6 +24,7 @@ import logicbyte.bytecode.Opcode.Opcodes;
 import logicbyte.bytecode.OpcodeParamValueTable.BinaryExpressionParamValueTable;
 import logicscript.assembler.ExpressionParamConverter;
 import logicscript.assembler.FunctionBytecodeTransformer;
+import logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException;
 import logicscript.ast.Chunk;
 import logicscript.ast.Location;
 import logicscript.ast.nodes.decl.FunctionDecl;
@@ -71,6 +71,55 @@ import logictype.Tuple;
  * @author Lochie
  */
 public class FunctionAssembler {
+
+    public static class FunctionAssemblySourceException extends Exception {
+
+	Chunk declChunk = null;
+	FunctionDecl declFunc = null;
+	Statement declStmt = null;
+	Expression declExpr = null;
+
+	public FunctionAssemblySourceException(Chunk declChunk, String message) {
+	    this(declChunk, null, message);
+	}
+
+	public FunctionAssemblySourceException(Chunk declChunk, FunctionDecl declFunc, String message) {
+	    super(message);
+	    this.declChunk = declChunk;
+	    this.declFunc = declFunc;
+	}
+
+	public FunctionAssemblySourceException(Chunk declChunk, FunctionDecl declFunc, Statement declStmt, String message) {
+	    super(message);
+	    this.declChunk = declChunk;
+	    this.declFunc = declFunc;
+	    this.declStmt = declStmt;
+	}
+
+	public FunctionAssemblySourceException(Chunk declChunk, FunctionDecl declFunc, Expression declExpr, String message) {
+	    super(message);
+	    this.declChunk = declChunk;
+	    this.declFunc = declFunc;
+	    this.declExpr = declExpr;
+	}
+
+	@Override
+	public String toString() {
+	    StringBuilder sb = new StringBuilder(getClass().getName());
+	    sb.append(": ").append(getMessage()).append("\r\n");
+	    if (declExpr != null)
+		sb.append("\tat expression: `").append(declExpr.toString()).append("`, ").append(declExpr.location.toString()).
+			append("\r\n");
+	    if (declStmt != null)
+		sb.append("\tat statement: `").append(declStmt.toString()).append("`, ").append(declStmt.location.toString()).append("\r\n");
+	    if (declFunc != null)
+		sb.append("\tin function: `").append(declFunc.toString()).append("`, ").append(declFunc.location.toString()).append("\r\n");
+	    if (declChunk != null)
+		sb.append("\tin chunk: ").append(declChunk.toString()).append("\r\n");
+	    return sb.toString();
+	}
+
+    }
 
     /**
      * <p>
@@ -398,10 +447,18 @@ public class FunctionAssembler {
 	 * @return If the function was successfully assembled; depending on the type of function, a number of opcodes may reside on the
 	 *         output tape.
 	 *
-	 * @throws Exception If the function machine is in an invalid state, or, if the function statements are not acceptable, or, should
-	 *                   some other assembly exception occur, one of {@link IllegalStateException} or {@link Exception} will be thrown.
+	 * @throws java.lang.InstantiationException
+	 * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
+	 * @throws logicscript.assembler.writer.FunctionAssembler.FunctionAssemblySourceException If the function machine is in an invalid
+	 *                                                                                        state, or, if the function statements are
+	 *                                                                                        not acceptable, or, should some other
+	 *                                                                                        assembly exception occur, one of
+	 *                                                                                        {@link IllegalStateException} or
+	 *                                                                                        {@link FunctionAssemblySourceException}
+	 *                                                                                        will be thrown.
 	 */
-	boolean emit(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl function) throws Exception {
+	boolean emit(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl function)
+		throws IllegalStateException, InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	    if (!m_isAssembling)
 		throw new IllegalStateException("not assembling");
 	    if (m_hasAssembled)
@@ -424,7 +481,8 @@ public class FunctionAssembler {
 	    if (function.paramNames != null || function.paramTypes != null)
 		if (!function.paramNames.isEmpty() || !function.paramTypes.isEmpty()) {
 		    if (function.paramNames.size() != function.paramTypes.size())
-			throw new IllegalStateException("incorrect number of function parameter name(s) & type(s)");
+			throw new FunctionAssemblySourceException(declaringChunk, function,
+				"incorrect number of function parameter name(s) & type(s)");
 
 		    Iterator< String> itx = function.paramNames.iterator();
 		    Iterator< TypeDecl> itx1 = function.paramTypes.iterator();
@@ -438,7 +496,7 @@ public class FunctionAssembler {
 			int numberOfTypeOfParam = typeMachine.getTypeNumber(typeOfParam);
 			int ptr = m_generatedFunctionClosure.count;
 			if (ptr >= s_maxFuncClosureVars)
-			    throw new IllegalStateException("too many parameters");
+			    throw new FunctionAssemblySourceException(declaringChunk, function, "too many parameters");
 			++m_generatedFunctionClosure.count; // lock slot ref
 			m_generatedFunctionClosure.names[ptr] = nameOfParam;
 			m_generatedFunctionClosure.types[ptr] = numberOfTypeOfParam;
@@ -457,7 +515,7 @@ public class FunctionAssembler {
 		while (itx.hasNext()) {
 		    FunctionLVarDecl decl = itx.next();
 		    if (!m_generatedFunctionClosure.checkname_distinct(decl.nameOfLocalVar))
-			throw new IllegalStateException("duplicate local name");
+			throw new FunctionAssemblySourceException(declaringChunk, function, "duplicate local name");
 		    int numberOfTypeOfLocal = typeMachine.getTypeNumber(decl.valueType);
 		    int ptr = m_generatedFunctionClosure.count;
 		    if (ptr >= s_maxFuncClosureVars)
@@ -559,7 +617,7 @@ public class FunctionAssembler {
 				    Integer locationOfLabel = labelTable.get(locationLabel);
 				    if (locationOfLabel == null) {
 					m_hasAssembled = false;
-					throw new IOException("emit: label location from state machine not defined");
+					throw new IllegalStateException("emit: label location from state machine not defined");
 				    }
 				    opWithLabels.setargobject(j, locationOfLabel);
 				}
@@ -606,11 +664,13 @@ public class FunctionAssembler {
 	    return m_hasAssembled;
 	}
 
-	boolean emitOpcodes(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl function) throws Exception {
+	boolean emitOpcodes(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl function)
+		throws IllegalStateException, InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	    return emitOpcodesBlock(typeMachine, linker, declaringChunk, function, function.block);
 	}
 
-	boolean emitOpcodesBlock(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl fnDecl, Block block) throws Exception {
+	boolean emitOpcodesBlock(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl fnDecl, Block block)
+		throws IllegalStateException, InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	    if (block.isEmpty()) {
 		output(Opcodes.NOP);
 		return true;
@@ -629,44 +689,38 @@ public class FunctionAssembler {
 	}
 
 	boolean emitOpcodesStatement(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl fnDecl,
-		Block inBlock, Statement s) throws Exception {
+		Block inBlock, Statement s) throws IllegalStateException, InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	    if (s instanceof ControlFlowStatement) {
 		if (s instanceof IfStatement) {
 		    final String exitifl = label("IF_ENDIF");
 		    List<String> exitlabel = newstringlist(exitifl);
 
-		    // Assumes that simplification has already modified the AST, then....:
 		    Expression ifExpr = ((IfStatement) s).conditionalExpr;
-		    if (ifExpr instanceof LiteralValue) { // simplified?
+		    if (ifExpr instanceof LiteralValue) {
 			LiteralValue lv = (LiteralValue) ifExpr;
-			if (lv.typeOfValue != TypeDecl.TYPE_BOOLEAN) // IF expects booleans, so:
-			    throw new IllegalStateException("emitOpcodesStatement: ifexpr if conditional literal not type=BOOLEAN");
+			if (lv.typeOfValue != TypeDecl.TYPE_BOOLEAN)
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: ifexpr if conditional literal not type=BOOLEAN");
 
 			if (lv == LiteralValue.VALUE_TRUE)
-			    // the first block shall always execute, so just emit statements:
 			    return emitOpcodesBlock(typeMachine, linker, declaringChunk, fnDecl, ((IfStatement) s).thenBlock);
 		    } else {
-			// we have to evaluate IF expression at runtime, so do so now:
 			newblocktag(BlockType.IF);
-
-			if (!emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, ifExpr))
-			    throw new IllegalStateException("emitOpcodesStatement: ifexpr if conditional not on stack");
-
-			output(new OpcodeControlBitmask(Opcodes.CMP, Opcodes.BITMASK_CMP_CONSUME), ifExpr.location);
-
 			final String exitl = label("IF_ENDTHEN");
 
+			if (!emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, ifExpr))
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: ifexpr if conditional not on stack");
+
+			output(new OpcodeControlBitmask(Opcodes.CMP, Opcodes.BITMASK_CMP_CONSUME), ifExpr.location);
 			output(new OpcodeControlBitmaskLabel(Opcodes.JMP, (byte) (Opcodes.BITMASK_JMP_AORO | Opcodes.BITMASK_JMP_JCJF),
 				newlist(-1), newstringlist(exitl)));
 
-			// the JMP is in place, so now write opcodes that shall exec when CMP=TRUE..
 			if (!emitOpcodesBlock(typeMachine, linker, declaringChunk, fnDecl, ((IfStatement) s).thenBlock))
-			    throw new IllegalStateException("emitOpcodesStatement: ifexpr then statements not written");
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: ifexpr then statements not written");
 
-			// then jump to the end of the block:
 			output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, newlist(-1), exitlabel));
-
-			// now put the EXITLABEL:
 			output(exitl);
 
 			endblocktag(BlockType.IF);
@@ -677,34 +731,34 @@ public class FunctionAssembler {
 			List<Block> elseIfBlocks = ((IfStatement) s).elseIfBlocks;
 
 			if (elseIfCondExprs.size() != elseIfBlocks.size())
-			    throw new IllegalStateException("emitOpcodesStatement: ifexpr elseif conditional-block count mismatch");
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: ifexpr elseif conditional-block count mismatch");
 
 			Iterator<Expression> itx0 = elseIfCondExprs.iterator();
 			Iterator<Block> itx1 = elseIfBlocks.iterator();
 			int i = 0;
 			while (itx0.hasNext() && itx1.hasNext()) {
 			    Expression elseIfExpr = itx0.next();
-			    // again, if simplification of a subsequent conditional expression term resulted in a literal...
 			    if (elseIfExpr instanceof LiteralValue) {
 				LiteralValue lv = (LiteralValue) elseIfExpr;
 				if (lv.typeOfValue != TypeDecl.TYPE_BOOLEAN)
-				    throw new IllegalStateException(
+				    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
 					    "emitOpcodesStatement: ifexpr elseif conditional literal not type=BOOLEAN");
 				if (lv == LiteralValue.VALUE_TRUE)
 				    return emitOpcodesBlock(typeMachine, linker, declaringChunk, fnDecl, itx1.next());
 			    } else {
 				newblocktag(BlockType.ELSEIF);
-
-				if (!emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, elseIfExpr))
-				    throw new IllegalStateException("emitOpcodesStatement: ifexpr elseif conditional not on stack");
-				output(new OpcodeControlBitmask(Opcodes.CMP, Opcodes.BITMASK_CMP_CONSUME), elseIfExpr.location);
-
 				final String exitl = label(String.format("IF_ENDELSEIF_%s", i));
+				if (!emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, elseIfExpr))
+				    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+					    "emitOpcodesStatement: ifexpr elseif conditional not on stack");
+				output(new OpcodeControlBitmask(Opcodes.CMP, Opcodes.BITMASK_CMP_CONSUME), elseIfExpr.location);
 				output(new OpcodeControlBitmaskLabel(Opcodes.JMP,
 					(byte) (Opcodes.BITMASK_JMP_AORO | Opcodes.BITMASK_JMP_JCJF), newlist(-1),
 					newstringlist(exitl)));
 				if (!emitOpcodesBlock(typeMachine, linker, declaringChunk, fnDecl, itx1.next()))
-				    throw new IllegalStateException("emitOpcodesStatement: ifexpr elseif-then statements not written");
+				    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+					    "emitOpcodesStatement: ifexpr elseif-then statements not written");
 				output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, newlist(-1), exitlabel));
 				output(exitl);
 				endblocktag(BlockType.ELSEIF);
@@ -715,13 +769,12 @@ public class FunctionAssembler {
 
 		    if (((IfStatement) s).elseBlock != null) {
 			newblocktag(BlockType.ELSE);
-			// no label needed, the generation of the IF or ELSEIF block generates the JUMPEXIT|JUMPNOEXEC loca:
 			if (!emitOpcodesBlock(typeMachine, linker, declaringChunk, fnDecl, ((IfStatement) s).elseBlock))
-			    throw new IllegalStateException("emitOpcodesStatement: ifexpr else statements not written");
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: ifexpr else statements not written");
 			endblocktag(BlockType.ELSE);
 		    }
 
-		    // put the final EXITLABEL:
 		    output(exitifl);
 
 		    return true;
@@ -738,7 +791,8 @@ public class FunctionAssembler {
 			if (slot == -1) {
 			    String label = getglobalvar(linker, forStmt.startLocal);
 			    if (label == null)
-				throw new IllegalStateException("emitOpcodesStatement: for start local not a local or global");
+				throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+					"emitOpcodesStatement: for start local not a local or global");
 			    output(new OpcodeControlBitmask(Opcodes.GETGLOBAL, newlist(label)), forStmt.location);
 			} else
 			    output(new OpcodeControlBitmask(Opcodes.GETLOCAL, newlist(slot)), forStmt.location);
@@ -749,7 +803,8 @@ public class FunctionAssembler {
 			emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, forStmt.startExpr);
 			output(new OpcodeControlBitmask(Opcodes.SETLOCAL, newlist(incrementorSlot)), forStmt.location);
 		    } else
-			throw new IllegalStateException("emitOpcodesStatement: for start argument not expression or local");
+			throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				"emitOpcodesStatement: for start argument not expression or local");
 
 		    String startl = label("FOR_ORIGIN");
 		    String endl = label("FOR_EXIT");
@@ -762,7 +817,8 @@ public class FunctionAssembler {
 			if (slot == -1) {
 			    String label = getglobalvar(linker, forStmt.byLocal);
 			    if (label == null)
-				throw new IllegalStateException("emitOpcodesStatement: for by local not a local or global");
+				throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+					"emitOpcodesStatement: for by local not a local or global");
 			    output(new OpcodeControlBitmask(Opcodes.GETGLOBAL, newlist(label)), forStmt.location);
 			} else
 			    output(new OpcodeControlBitmask(Opcodes.GETLOCAL, newlist(slot)), forStmt.location);
@@ -774,11 +830,13 @@ public class FunctionAssembler {
 			    else if (lv.typeOfValue == TypeDecl.TYPE_REAL)
 				output(new OpcodeControlBitmask(Opcodes.PUSHR, newlist(lv.valueObject)), forStmt.location);
 			    else
-				throw new IllegalStateException("emitOpcodesStatement: for incrementor literal not integer or real type");
+				throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+					"emitOpcodesStatement: for incrementor literal not integer or real type");
 			} else
 			    emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, forStmt.byExpr);
 		    else
-			throw new IllegalStateException("emitOpcodeStatement: for incrementor argument not expression or local");
+			throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				"emitOpcodeStatement: for incrementor argument not expression or local");
 
 		    output(new OpcodeControlBitmask(Opcodes.GETLOCAL, newlist(incrementorSlot)));
 		    output(new OpcodeControlBitmask(Opcodes.BINOP, newlist(BinaryExpressionParamValueTable.NUM_ADD.value())),
@@ -791,7 +849,8 @@ public class FunctionAssembler {
 			if (slot == -1) {
 			    String label = getglobalvar(linker, forStmt.endLocal);
 			    if (label == null)
-				throw new IllegalStateException("emitOpcodesStatement: for end local not a local or global");
+				throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+					"emitOpcodesStatement: for end local not a local or global");
 			    output(new OpcodeControlBitmask(Opcodes.GETGLOBAL, newlist(label)), forStmt.location);
 			} else
 			    output(new OpcodeControlBitmask(Opcodes.GETLOCAL, newlist(slot)), forStmt.location);
@@ -803,11 +862,13 @@ public class FunctionAssembler {
 			    else if (lv.typeOfValue == TypeDecl.TYPE_REAL)
 				output(new OpcodeControlBitmask(Opcodes.PUSHR, newlist(lv.valueObject)), forStmt.location);
 			    else
-				throw new IllegalStateException("emitOpcodesStatement: for end literal not integer or real type");
+				throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+					"emitOpcodesStatement: for end literal not integer or real type");
 			} else
 			    emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, forStmt.endExpr);
 		    else
-			throw new IllegalStateException("emitOpcodesStatement: for end argument not expression or local");
+			throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				"emitOpcodesStatement: for end argument not expression or local");
 
 		    output(new OpcodeControlBitmask(Opcodes.BINOP, newlist(BinaryExpressionParamValueTable.VAL_EQ.value())),
 			    forStmt.location);
@@ -833,25 +894,29 @@ public class FunctionAssembler {
 			    ((LoopStatement) s).location);
 		    output(exitLabel);
 		    if (!m_generatedLoopLabelStack.pop().equals(exitLabel))
-			throw new IllegalStateException("emitOpcodeStatement: loop label stack mismatch");
+			throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				"emitOpcodeStatement: loop label stack mismatch");
 		    endblocktag(BlockType.LOOP);
 		    return true;
 		} else if (s instanceof ExitWhenStatement) {
 		    checkblocktag(BlockType.LOOP);
 		    if (m_generatedLoopLabelStack.isEmpty())
-			throw new IllegalStateException("emitOpcodesStatement: exitwhen not within LOOP construct");
+			throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				"emitOpcodesStatement: exitwhen not within LOOP construct");
 		    Expression exitExpr = ((ExitWhenStatement) s).condExitWhenExpr;
 		    String jumpLabel = m_generatedLoopLabelStack.peek();
 		    if (exitExpr instanceof LiteralValue) {
 			LiteralValue lv = (LiteralValue) exitExpr;
 			if (lv.typeOfValue != TypeDecl.TYPE_BOOLEAN)
-			    throw new IllegalStateException("emitOpcodesStatement: exitwhen conditional literal not type=BOOLEAN");
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: exitwhen conditional literal not type=BOOLEAN");
 			if (lv.valueObject == LiteralValue.VALUE_TRUE)
 			    output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, newlist(-1),
 				    newstringlist(jumpLabel)), ((LiteralValue) exitExpr).location);
 		    } else {
 			if (!emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, exitExpr))
-			    throw new IllegalStateException("emitOpcodesStatement: exitwhen conditional not on stack");
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: exitwhen conditional not on stack");
 			output(new OpcodeControlBitmask(Opcodes.CMP, Opcodes.BITMASK_CMP_CONSUME), exitExpr.location);
 			output(new OpcodeControlBitmaskLabel(Opcodes.JMP, (byte) (Opcodes.BITMASK_JMP_AORO | Opcodes.BITMASK_JMP_JCJT),
 				newlist(-1), newstringlist(jumpLabel)), ((ExitWhenStatement) s).location);
@@ -899,7 +964,8 @@ public class FunctionAssembler {
 		    if (((RaiseStatement) s).raiseValue instanceof LiteralValue) {
 			LiteralValue lv = (LiteralValue) ((RaiseStatement) s).raiseValue;
 			if (lv.typeOfValue != TypeDecl.TYPE_STRING)
-			    throw new IllegalStateException("emitOpcodesStatement: literal for RAISE not type=STRING");
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: literal for RAISE not type=STRING");
 			output(new OpcodeControlBitmask(Opcodes.PUSHS, newlist(lv.valueObject)), lv.location);
 		    } else
 			emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, ((RaiseStatement) s).raiseValue);
@@ -912,9 +978,11 @@ public class FunctionAssembler {
 		    if (yieldStmt.yieldExpression != null) {
 			if (yieldStmt.yieldExpression instanceof LiteralValue) {
 			    if (!emitOpcodesLiteral(typeMachine, declaringChunk, fnDecl, inBlock, (LiteralValue) yieldStmt.yieldExpression))
-				throw new IllegalStateException("emitOpcodesStatement: literal not PUSHed on stack");
+				throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+					"emitOpcodesStatement: literal not PUSHed on stack");
 			} else if (!emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, yieldStmt.yieldExpression))
-			    throw new IllegalStateException("emitOpcodesStatement: yield yieldexpr not on stack");
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: yield yieldexpr not on stack");
 			output(new OpcodeControlBitmask(Opcodes.YIELD, (byte) Opcodes.BITMASK_YIELD_STACK), yieldStmt.location);
 		    } else
 			output(Opcodes.YIELD, yieldStmt.location);
@@ -925,11 +993,13 @@ public class FunctionAssembler {
 		    if (returnStmt.returnExpression != null)
 			if (returnStmt.returnExpression instanceof LiteralValue) {
 			    if (!emitOpcodesLiteral(typeMachine, declaringChunk, fnDecl, inBlock, (LiteralValue) returnStmt.returnExpression))
-				throw new IllegalStateException("emitOpcodesStatement: literal not PUSHed on stack");
+				throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+					"emitOpcodesStatement: literal not PUSHed on stack");
 			    output(new OpcodeControlBitmask(Opcodes.RETN, Opcodes.BITMASK_RETN_RVAL), returnStmt.location);
 			} else {
 			    if (!emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, returnStmt.returnExpression))
-				throw new IllegalStateException("emitOpcodesStatement: return returnexpr not on stack");
+				throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+					"emitOpcodesStatement: return returnexpr not on stack");
 			    output(new OpcodeControlBitmask(Opcodes.RETN, Opcodes.BITMASK_RETN_RVAL), returnStmt.location);
 			}
 		    else
@@ -942,7 +1012,8 @@ public class FunctionAssembler {
 		    if (debugStmt.statement != null) {
 			output(Opcodes.DEBUG, debugStmt.location);
 			if (!emitOpcodesStatement(typeMachine, linker, declaringChunk, fnDecl, inBlock, debugStmt.statement))
-			    throw new IllegalStateException("emitOpcodesStatement: statement following DEBUG not written");
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: statement following DEBUG not written");
 			return true;
 		    }
 		} else if (s instanceof FunctionCallStatement) {
@@ -1001,7 +1072,7 @@ public class FunctionAssembler {
 	}
 
 	/**
-	 * Emit component(s) of an Expression to bytecode. The AST expression tree is read left-recursively; the AST tree therefore contains
+	 * Emit component(s) of an Expression to bytecode.The AST expression tree is read left-recursively; the AST tree therefore contains
 	 * the right-most term(s) of the binary expression (if the top level expression is a binary expression), or begins with a single
 	 * unary operation followed by any expression, or is a literal value which may directly be placed on the stack.
 	 *
@@ -1014,10 +1085,11 @@ public class FunctionAssembler {
 	 *
 	 * @return If the Expression was written to bytecode or not
 	 *
-	 * @throws Exception
+	 * @throws java.lang.InstantiationException
+	 * @throws logicscript.assembler.writer.FunctionAssembler.FunctionAssemblySourceException
 	 */
 	boolean emitOpcodesExpression(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl fnDecl,
-		Block inBlock, Expression e) throws Exception {
+		Block inBlock, Expression e) throws IllegalStateException, InstantiationException, FunctionAssemblySourceException {
 
 	    if (e instanceof ParenExpression)
 		return emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, ((ParenExpression) e).expressionInParenth);
@@ -1069,18 +1141,28 @@ public class FunctionAssembler {
 		int slot = getclosurevar(((VariableArrayRefExpression) e).nameOfLocalOrGlobalVar);
 		if (slot != -1)
 		    output(new OpcodeControlBitmask(Opcodes.GETLOCALARR, newlist(slot)), ((VariableArrayRefExpression) e).location);
-		else
-		    output(new OpcodeControlBitmask(Opcodes.GETGLOBALARR, newlist(((VariableArrayRefExpression) e).nameOfLocalOrGlobalVar)),
+		else {
+		    String label = getglobalvar(linker, ((VariableArrayRefExpression) e).nameOfLocalOrGlobalVar);
+		    if (label == null)
+			throw new FunctionAssemblySourceException(declaringChunk, fnDecl, e,
+				"emitOpcodesExpression: variable not a local or global var");
+		    output(new OpcodeControlBitmask(Opcodes.GETGLOBALARR, newlist(label)),
 			    ((VariableArrayRefExpression) e).location);
+		}
 		return true;
 	    } else if (e instanceof VariableRefExpression) {
 		/* variable literal value get */
 		int slot = getclosurevar(((VariableRefExpression) e).nameOfLocalOrGlobalVar);
 		if (slot != -1)
 		    output(new OpcodeControlBitmask(Opcodes.GETLOCAL, newlist(slot)), ((VariableRefExpression) e).location);
-		else
-		    output(new OpcodeControlBitmask(Opcodes.GETGLOBAL, newlist(((VariableRefExpression) e).nameOfLocalOrGlobalVar)),
+		else {
+		    String label = getglobalvar(linker, ((VariableRefExpression) e).nameOfLocalOrGlobalVar);
+		    if (label == null)
+			throw new FunctionAssemblySourceException(declaringChunk, fnDecl, e,
+				"emitOpcodesExpression: variable not a local or global var");
+		    output(new OpcodeControlBitmask(Opcodes.GETGLOBAL, newlist(label)),
 			    ((VariableRefExpression) e).location);
+		}
 		return true;
 	    } else if (e instanceof FunctionRefExpression) {
 		/* function pointer creation */
@@ -1093,7 +1175,8 @@ public class FunctionAssembler {
 	    return false;
 	}
 
-	boolean emitOpcodesLiteral(TypeAssembler typeMachine, Chunk declChunk, FunctionDecl fnDecl, Block inBlock, LiteralValue lv) throws Exception {
+	boolean emitOpcodesLiteral(TypeAssembler typeMachine, Chunk declChunk, FunctionDecl fnDecl, Block inBlock, LiteralValue lv)
+		throws IllegalStateException, InstantiationException, FunctionAssemblySourceException {
 	    if (lv.typeOfValue == TypeDecl.TYPE_BOOLEAN)
 		output(new OpcodeControlBitmask(Opcodes.PUSHB, newlist(lv == LiteralValue.VALUE_TRUE)), lv.location);
 	    else if (lv.typeOfValue == TypeDecl.TYPE_INTEGER)
@@ -1103,7 +1186,8 @@ public class FunctionAssembler {
 	    else if (lv.typeOfValue == TypeDecl.TYPE_STRING)
 		output(new OpcodeControlBitmask(Opcodes.PUSHS, newlist(lv.valueObject)), lv.location);
 	    else
-		throw new IllegalStateException("emitOpcodesLiteral: unexpected literal type for RETURN statement");
+		throw new FunctionAssemblySourceException(declChunk, fnDecl, lv,
+			"emitOpcodesLiteral: unexpected literal type for RETURN statement");
 	    return true;
 	}
 
@@ -1151,11 +1235,17 @@ public class FunctionAssembler {
 	 *
 	 * @return The local slot which was allocated
 	 *
-	 * @throws IllegalStateException Any exception which occurs because the closure variable cannot be allocated, such as a duplicate
-	 *                               closure variable name or exhaustion of available closure variable slots
-	 * @throws Exception             Any checked exception
+	 * @throws IllegalStateException                                                          Any exception which occurs because the
+	 *                                                                                        closure variable cannot be allocated, such
+	 *                                                                                        as a duplicate closure variable name or
+	 *                                                                                        exhaustion of available closure variable
+	 *                                                                                        slots
+	 * @throws java.lang.InstantiationException
+	 * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
+	 * @throws logicscript.assembler.writer.FunctionAssembler.FunctionAssemblySourceException
 	 */
-	int newclosurevar(TypeAssembler typeMachine, String nameOfLocal, TypeDecl typeOfLocal, Location location) throws Exception {
+	int newclosurevar(TypeAssembler typeMachine, String nameOfLocal, TypeDecl typeOfLocal, Location location)
+		throws IllegalStateException, InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	    if (m_generatedClosures.isEmpty())
 		throw new IllegalStateException("newclosurevar: cannot newupvar when not inclosure scope");
 	    GeneratorClosure closure = m_generatedClosures.peek();
@@ -1190,12 +1280,18 @@ public class FunctionAssembler {
 	 *
 	 * @return The local slot which was allocated
 	 *
-	 * @throws IllegalStateException Any exception which occurs because the closure variable cannot be allocated, such as a duplicate
-	 *                               closure variable name or exhaustion of available closure variable slots
-	 * @throws Exception             Any checked exception
+	 * @throws IllegalStateException                                                          Any exception which occurs because the
+	 *                                                                                        closure variable cannot be allocated, such
+	 *                                                                                        as a duplicate closure variable name or
+	 *                                                                                        exhaustion of available closure variable
+	 *                                                                                        slots
+	 * @throws java.lang.InstantiationException
+	 * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
+	 * @throws logicscript.assembler.writer.FunctionAssembler.FunctionAssemblySourceException
 	 */
 	int newclosurevararray(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl fnDecl, Block inBlock,
-		String nameOfLocal, TypeDecl typeOfLocal, Expression dimExpr, Location location) throws Exception {
+		String nameOfLocal, TypeDecl typeOfLocal, Expression dimExpr, Location location)
+		throws IllegalStateException, InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	    if (m_generatedClosures.isEmpty())
 		throw new IllegalStateException("newclosurevararray: cannot newclosurevararray when not inclosure scope");
 	    GeneratorClosure closure = m_generatedClosures.peek();
@@ -1217,7 +1313,7 @@ public class FunctionAssembler {
 	    return ptr;
 	}
 
-	int getclosurevar(String nameOfLocal) throws Exception {
+	int getclosurevar(String nameOfLocal) throws FunctionAssemblySourceException {
 	    int slot = -1;
 	    if (!m_generatedClosures.isEmpty()) {
 		Iterator< GeneratorClosure> itx = m_generatedClosures.iterator();
@@ -1234,7 +1330,7 @@ public class FunctionAssembler {
 	    return slot;
 	}
 
-	String getglobalvar(LinkerObjectFile linker, String nameOfGlobalUnsafe) throws Exception {
+	String getglobalvar(LinkerObjectFile linker, String nameOfGlobalUnsafe) throws FunctionAssemblySourceException {
 	    Iterator<GlobalsEntry> itx0 = linker.globalsTable.iterator();
 	    while (itx0.hasNext()) {
 		GlobalsEntry g = itx0.next();
@@ -1245,8 +1341,14 @@ public class FunctionAssembler {
 	    Iterator<ImportsEntry> itx1 = linker.importsTable.iterator();
 	    while (itx1.hasNext()) {
 		ImportsEntry e = itx1.next();
-		if (e.name.equals(nameOfGlobalUnsafe))
-		    return e.name;
+		if ((e.typeflags & LinkerObjectFile.TYPEFLAGS_IMPORTS_GLOBAL) != 0) {
+		    Iterator<String> itx2 = e.labels.iterator();
+		    while (itx2.hasNext()) {
+			String name = itx2.next();
+			if (name.equals(nameOfGlobalUnsafe))
+			    return name;
+		    }
+		}
 	    }
 	    return null;
 	}
@@ -1256,9 +1358,11 @@ public class FunctionAssembler {
 	 *
 	 * @param location The debug location which ended the current closure on the stack
 	 *
-	 * @throws IllegalStateException If the closure stack is empty, an IllegalStateException is thrown.
+	 * @throws IllegalStateException                                                          If the closure stack is empty, an
+	 *                                                                                        IllegalStateException is thrown.
+	 * @throws logicscript.assembler.writer.FunctionAssembler.FunctionAssemblySourceException
 	 */
-	void endclosure(Location location) throws IllegalStateException {
+	void endclosure(Location location) throws IllegalStateException, FunctionAssemblySourceException {
 	    try {
 		m_generatedClosures.pop();
 	    } catch (EmptyStackException ese) {
@@ -1371,7 +1475,6 @@ public class FunctionAssembler {
 
 	void output(Opcode opcode, int line, int col) {
 	    m_generatedObjectList.add(new Pair<>(opcode, new DebugLocationSegment(line, col)));
-
 	}
 
 	void output(Opcode opcode, Location loc) {
@@ -1385,7 +1488,7 @@ public class FunctionAssembler {
 	    m_generatedObjectList.add(new Pair<>(label, null));
 	}
 
-	boolean stream(LogicBytecodeFile dst) throws IOException {
+	boolean stream(LogicBytecodeFile dst) throws IllegalStateException {
 	    if (m_isAssembling)
 		throw new IllegalStateException("still assembling");
 	    if (!m_hasAssembled)
@@ -1412,6 +1515,11 @@ public class FunctionAssembler {
 
     public FunctionAssembler() {
 	reset();
+    }
+
+    public FunctionAssembler addFunctionAssemblyTransformer(FunctionBytecodeTransformer t) {
+	this.fnGenerator.addTransformer(t);
+	return this;
     }
 
     /**
@@ -1443,10 +1551,13 @@ public class FunctionAssembler {
      * @param declaringChunk      The code chunk which declares the function
      * @param funcDecl            The function declaration object
      *
-     * @throws Exception Any compilation-level exception
+     * @throws java.lang.InstantiationException
+     * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
+     *
+     * @throws FunctionAssemblySourceException                                         Any compilation-level exception
      */
     public void assembleUserFunction(LinkerObjectFile dstLinkObj, LogicBytecodeFile dstFileObj, TypeAssembler typeCompilerMachine,
-	    Chunk declaringChunk, FunctionDecl funcDecl) throws Exception {
+	    Chunk declaringChunk, FunctionDecl funcDecl) throws InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	if (fnGenerator.
 		reset().
 		initShouldDebug(m_generateDebugSymbols).
@@ -1455,7 +1566,7 @@ public class FunctionAssembler {
 	    fnGenerator.stream(dstFileObj);
 	    compiledFunctionTable.put(funcDecl.name, funcDecl);
 	} else
-	    throw new IllegalStateException("GeneratorMachine did not generate any bytecode, call batman");
+	    throw new FunctionAssemblySourceException(declaringChunk, funcDecl, "no bytecode generated");
     }
 
     /**
@@ -1467,10 +1578,13 @@ public class FunctionAssembler {
      * @param declaringChunk      The code chunk which declares the function
      * @param funcDecl            The native function declaration object
      *
-     * @throws Exception Any compilation-level exception
+     * @throws java.lang.InstantiationException
+     * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
+     *
+     * @throws FunctionAssemblySourceException                                         Any compilation-level exception
      */
     public void assembleNativeFunction(LinkerObjectFile dstLinkObj, LogicBytecodeFile dstFileObj, TypeAssembler typeCompilerMachine,
-	    Chunk declaringChunk, FunctionDecl funcDecl) throws Exception {
+	    Chunk declaringChunk, FunctionDecl funcDecl) throws InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	if (fnGenerator.
 		reset().
 		initShouldDebug(m_generateDebugSymbols).
@@ -1479,7 +1593,7 @@ public class FunctionAssembler {
 	    fnGenerator.stream(dstFileObj);
 	    compiledFunctionTable.put(funcDecl.name, funcDecl);
 	} else
-	    throw new IllegalStateException("GeneratorMachine did not generate any bytecode, call batman");
+	    throw new FunctionAssemblySourceException(declaringChunk, funcDecl, "no bytecode generated");
     }
 
     /**
@@ -1491,10 +1605,10 @@ public class FunctionAssembler {
      * @param exportBlock         The block within the export statement
      * @param referentFuncs       The referent function list
      *
-     * @throws Exception
+     * @throws FunctionAssemblySourceException
      */
     public void assembleFunctionExport(LinkerObjectFile dstLinkObj, TypeAssembler typeCompilerMachine, Chunk declaringChunk,
-	    LibraryBlock exportBlock, LibraryReference referentFuncs) throws Exception {
+	    LibraryBlock exportBlock, LibraryReference referentFuncs) throws FunctionAssemblySourceException {
 	ExportsEntry asCompiled = new ExportsEntry();
 	asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_EXPORTS_FUNCTION;
 	asCompiled.name = exportBlock.symbol;
@@ -1511,10 +1625,10 @@ public class FunctionAssembler {
      * @param importBlock         The block within the import statement
      * @param referentFuncs       The referent function list
      *
-     * @throws Exception
+     * @throws FunctionAssemblySourceException
      */
     public void assembleFunctionImport(LinkerObjectFile dstLinkObj, TypeAssembler typeCompilerMachine, Chunk declaringChunk,
-	    LibraryBlock importBlock, LibraryReference referentFuncs) throws Exception {
+	    LibraryBlock importBlock, LibraryReference referentFuncs) throws FunctionAssemblySourceException {
 	if (referentFuncs.isWildcard) {
 	    ImportsEntry asCompiled = new ImportsEntry();
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_IMPORTS_FUNCTION | LinkerObjectFile.TYPEFLAGS_IMPORTS_WILDCARD;

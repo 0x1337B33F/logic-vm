@@ -4,6 +4,7 @@ import logicbyte.bytecode.LinkerObjectFile;
 import logicbyte.bytecode.LinkerObjectFile.ExportsEntry;
 import logicbyte.bytecode.LinkerObjectFile.GlobalsEntry;
 import logicbyte.bytecode.LinkerObjectFile.ImportsEntry;
+import logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException;
 import logicscript.ast.Chunk;
 import logicscript.ast.nodes.globals.GlobalsBlock;
 import logicscript.ast.nodes.globals.GlobalsVarDecl;
@@ -17,6 +18,40 @@ import logictype.BiDiMap;
  */
 public class GlobalsAssembler {
 
+    static class GlobalsAssemblerGlobalException extends Exception {
+
+	final String globalName;
+
+	public GlobalsAssemblerGlobalException(String globalName, String message) {
+	    super(message);
+	    this.globalName = globalName;
+	}
+
+	@Override
+	public String toString() {
+	    StringBuilder sb = new StringBuilder(getClass().getName());
+	    sb.append(": ").append(getMessage()).append("\r\n");
+	    if (this.globalName != null)
+		sb.append("\tglobal-name: `").append(this.globalName).append("`\r\n");
+	    return sb.toString();
+	}
+    }
+
+    public static class GlobalsAssemblerLookupException extends GlobalsAssemblerGlobalException {
+
+	public GlobalsAssemblerLookupException(String globalName, String message) {
+	    super(globalName, message);
+	}
+    }
+
+    public static class GlobalsAssemblerGeneratorException extends GlobalsAssemblerGlobalException {
+
+	public GlobalsAssemblerGeneratorException(String globalName, String message) {
+	    super(globalName, message);
+	}
+
+    }
+
     BiDiMap<GlobalsVarDecl, GlobalsEntry> assembledGlobalsTable = new BiDiMap<>();
 
     public GlobalsAssembler() {
@@ -28,7 +63,7 @@ public class GlobalsAssembler {
     }
 
     public void assembleGlobalDeclaration(LinkerObjectFile dstLinkObj, TypeAssembler typeCompilerMachine, Chunk declaringChunk,
-	    GlobalsBlock declaringBlock, GlobalsVarDecl decl) throws Exception {
+	    GlobalsBlock declaringBlock, GlobalsVarDecl decl) throws TypeAssemblerLookupException, GlobalsAssemblerGeneratorException {
 
 	GlobalsEntry asCompiled = new GlobalsEntry();
 	asCompiled.name = decl.nameOfGlobalVar;
@@ -41,8 +76,7 @@ public class GlobalsAssembler {
     }
 
     public void assembleGlobalImport(LinkerObjectFile dstLinkObj, TypeAssembler typeCompilerMachine, Chunk declaringChunk,
-	    LibraryBlock importBlock,
-	    LibraryReference referentGlobals) throws Exception {
+	    LibraryBlock importBlock, LibraryReference referentGlobals) throws GlobalsAssemblerGeneratorException {
 
 	if (referentGlobals.isWildcard) {
 	    ImportsEntry asCompiled = new ImportsEntry();
@@ -59,7 +93,7 @@ public class GlobalsAssembler {
     }
 
     public void assembleGlobalExport(LinkerObjectFile dstLinkObj, TypeAssembler typeCompilerMachine, Chunk declaringChunk,
-	    LibraryBlock exportBlock, LibraryReference referentGlobals) throws Exception {
+	    LibraryBlock exportBlock, LibraryReference referentGlobals) throws GlobalsAssemblerGeneratorException {
 	ExportsEntry asCompiled = new ExportsEntry();
 	asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_EXPORTS_GLOBAL;
 	asCompiled.name = exportBlock.symbol;

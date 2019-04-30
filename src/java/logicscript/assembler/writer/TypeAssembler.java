@@ -19,6 +19,40 @@ import logictype.BiDiMap;
  */
 public class TypeAssembler {
 
+    static class TypeAssemblerTypeException extends Exception {
+
+	final String typeName;
+
+	public TypeAssemblerTypeException(String typeName, String message) {
+	    super(message);
+	    this.typeName = typeName;
+	}
+
+	@Override
+	public String toString() {
+	    StringBuilder sb = new StringBuilder(getClass().getName());
+	    sb.append(": ").append(getMessage()).append("\r\n");
+	    if (this.typeName != null)
+		sb.append("\ttype-name: `").append(this.typeName).append("`\r\n");
+	    return sb.toString();
+	}
+    }
+
+    public static class TypeAssemblerLookupException extends TypeAssemblerTypeException {
+
+	public TypeAssemblerLookupException(String typeName, String message) {
+	    super(typeName, message);
+	}
+
+    }
+
+    public static class TypeAssemblerGeneratorException extends TypeAssemblerTypeException {
+
+	public TypeAssemblerGeneratorException(String typeName, String message) {
+	    super(typeName, message);
+	}
+    }
+
     BiDiMap<Integer, TypeDecl> assembledTypeTable = new BiDiMap<>();
     BiDiMap<String, TypeDecl> assembledTypeTableNameIndex = new BiDiMap<>();
 
@@ -31,9 +65,9 @@ public class TypeAssembler {
 	this.assembledTypeTableNameIndex.clear();
     }
 
-    public void assembleTypeDecl(LinkerObjectFile dstLinkObj, Chunk c, TypeDecl typeDecl) throws Exception {
+    public void assembleTypeDecl(LinkerObjectFile dstLinkObj, Chunk c, TypeDecl typeDecl) throws TypeAssemblerGeneratorException {
 	if (assembledTypeTableNameIndex.containsKey(typeDecl.typeName))
-	    throw new Exception(String.format("TypeAssembler#assembleTypeDecl: duplicate type-name `%s`", typeDecl.typeName));
+	    throw new TypeAssemblerGeneratorException(typeDecl.typeName, "duplicate type-name");
 	if (typeDecl.type == TypeDeclType.EXTENDS_HANDLE) {
 	    TypesEntry asCompiled = new TypesEntry();
 	    asCompiled.name = typeDecl.typeName;
@@ -48,13 +82,13 @@ public class TypeAssembler {
 	    internalAssembleType(typeDecl, asCompiled);
 	    dstLinkObj.typesTable.add(asCompiled);
 	} else
-	    throw new Exception(String.format("TypeAssembler#assembleTypeDecl: unsupported type type %s", typeDecl.type.name()));
+	    throw new TypeAssemblerGeneratorException(typeDecl.typeName, String.format("unsupported type type %s", typeDecl.type.name()));
     }
 
-    public void assembleTypeImport(LinkerObjectFile dstLinkObj, Chunk c, LibraryBlock collection, LibraryReference referent) throws Exception {
+    public void assembleTypeImport(LinkerObjectFile dstLinkObj, Chunk c, LibraryBlock collection, LibraryReference referent) throws TypeAssemblerGeneratorException {
 	if (referent.isWildcard)
 	    // TODO: this is technically possible, but for now take the easier route:
-	    throw new IllegalStateException("Cannot import types by wildcard operator");
+	    throw new TypeAssemblerGeneratorException(null, "Cannot import types by wildcard operator");
 	else {
 	    ImportsEntry asCompiled = new ImportsEntry();
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_IMPORTS_TYPE;
@@ -68,9 +102,9 @@ public class TypeAssembler {
 	    while (itx.hasNext()) {
 		TypeDecl placeholderType = c.findTypeDecl(name = itx.next());
 		if (placeholderType == null)
-		    throw new Exception(String.format("TypeAssembler#assembleTypeImport: missing typetoken placeholder for type %s", name));
+		    throw new TypeAssemblerGeneratorException(name, "missing typetoken placeholder for type");
 		if (assembledTypeTableNameIndex.containsKey(name))
-		    throw new Exception(String.format("TypeAssembler#assembleTypeImport: duplicate type-name `%s`", name));
+		    throw new TypeAssemblerGeneratorException(name, "duplicate type-name");
 		int index = internalNextTypeSlot();
 		labelList.add(name);
 		slotList.add(index);
@@ -80,8 +114,7 @@ public class TypeAssembler {
 	}
     }
 
-    public void assembleTypeExport(LinkerObjectFile dstLinkObj, Chunk c, LibraryBlock collection, LibraryReference referent) throws Exception {
-
+    public void assembleTypeExport(LinkerObjectFile dstLinkObj, Chunk c, LibraryBlock collection, LibraryReference referent) throws TypeAssemblerLookupException, TypeAssemblerGeneratorException {
 	if (referent.isWildcard) {
 	    ExportsEntry asCompiled = new ExportsEntry();
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_EXPORTS_TYPE;
@@ -98,9 +131,9 @@ public class TypeAssembler {
 	    while (itx.hasNext()) {
 		TypeDecl placeholderType = c.findTypeDecl(name = itx.next());
 		if (placeholderType == null)
-		    throw new Exception(String.format("TypeAssembler#assembleTypeExport: missing typetoken placeholder for type %s", name));
+		    throw new TypeAssemblerGeneratorException(name, "missing typetoken placeholder");
 		if (getTypeNumber(placeholderType) == 0)
-		    throw new Exception(String.format("TypeAssembler#assembleTypeExport: the type `%s` is not defined", name));
+		    throw new TypeAssemblerLookupException(name, "type not assembled");
 		labelList.add(name);
 	    }
 	    dstLinkObj.exportsTable.add(asCompiled);
@@ -118,15 +151,15 @@ public class TypeAssembler {
 	assembledTypeTableNameIndex.put(declInst.typeName, declInst);
     }
 
-    public TypeDecl checkType(TypeDecl typeObj) throws Exception {
+    public TypeDecl checkType(TypeDecl typeObj) throws TypeAssemblerLookupException {
 	return checkType(typeObj.typeName);
     }
 
-    public TypeDecl checkType(String nameOfType) throws Exception {
+    public TypeDecl checkType(String nameOfType) throws TypeAssemblerLookupException {
 	return assembledTypeTableNameIndex.get(nameOfType);
     }
 
-    public int getTypeNumber(TypeDecl compiledType) throws Exception {
+    public int getTypeNumber(TypeDecl compiledType) throws TypeAssemblerLookupException {
 	if (compiledType == TypeDecl.TYPE_NOTHING)
 	    return 0;
 	if (compiledType == TypeDecl.TYPE_HANDLE)
@@ -144,7 +177,7 @@ public class TypeAssembler {
 
 	Integer boxOfVal = assembledTypeTable.reverse().get(compiledType);
 	if (boxOfVal == null)
-	    throw new Exception(String.format("The type %s has not been compiled", compiledType.typeName));
+	    throw new TypeAssemblerLookupException(compiledType.typeName, "type not assembled");
 	return (int) boxOfVal;
     }
 
