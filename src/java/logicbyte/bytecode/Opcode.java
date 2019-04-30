@@ -195,16 +195,11 @@ public interface Opcode {
 	 */
 	CALLGLOBAL(0x0C, true, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL, OpcodeArgType.INT_PACKED)),
 	/**
-	 * BINOP: do binary operation on stack (a {
-	 *
-	 * @ stack 0}, b {
-	 * @ stack 1}) -> to stack
+	 * BINOP: do binary operation on stack (a {stack 0}, b {stack 1}) -> to stack
 	 */
 	BINOP(0x0D, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
-	 * UNOP: do binary operation on stack (a {
-	 *
-	 * @ stack 0}) -> to stack
+	 * UNOP: do binary operation on stack (a {stack 0}) -> to stack
 	 */
 	UNOP(0x0E, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
@@ -279,6 +274,9 @@ public interface Opcode {
 	 * BREAK: causes the current VM to stop executing instructions temporarily if a debugger attached, otherwise, wastes one cycle
 	 */
 	BREAK(0x20, false, null),
+	/**
+	 * YIELD: yield a value (or nothing) to the callee of the coroutine or caller
+	 */
 	YIELD(0x21, true, null);
 
 	/*
@@ -497,7 +495,44 @@ public interface Opcode {
 	    this.theMaskNibble = theMaskNibble;
 	    this.theParamValueList = theParamValues;
 
-	    if (this.theParamValueList != null && this.theParamValueList.size() != 0) {
+	    if (baseOp.hasopts()) {
+		int allowMask = 0x00;
+		switch (baseOp.opcode()) {
+		    case JMP:
+			allowMask = Opcodes.BITMASK_JMP;
+			break;
+		    case RETN:
+			allowMask = Opcodes.BITMASK_RETN;
+			break;
+		    case CALL:
+			allowMask = Opcodes.BITMASK_CALL;
+			break;
+		    case CALLLOCAL:
+			allowMask = Opcodes.BITMASK_CALLLOCAL;
+			break;
+		    case CALLGLOBAL:
+			allowMask = Opcodes.BITMASK_CALLGLOBAL;
+			break;
+		    case NEWUPVAR:
+			allowMask = Opcodes.BITMASK_NEWUPVAR;
+			break;
+		    case CATCH:
+			allowMask = Opcodes.BITMASK_CATCH;
+			break;
+		    case CMP:
+			allowMask = Opcodes.BITMASK_CMP;
+			break;
+		    case YIELD:
+			allowMask = Opcodes.BITMASK_YIELD;
+			break;
+		}
+		if ((theMaskNibble & (~allowMask)) != 0)
+		    throw new InstantiationException(String.format("%s: Unsupported mask bits: %x", baseOp.opcode().name(),
+			    (theMaskNibble & (~allowMask))));
+	    } else if (theMaskNibble != 0x00)
+		throw new InstantiationException(String.format("%s: Mask bits not supported", baseOp.opcode().name()));
+
+	    if (this.theParamValueList != null && !this.theParamValueList.isEmpty()) {
 		if (this.theParamValueList.size() != this.args())
 		    throw new InstantiationException("Wrong opcode argument count");
 		for (int i = 0, j = this.args(); i < j; i++)
