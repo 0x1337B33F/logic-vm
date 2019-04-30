@@ -135,7 +135,7 @@ function    TestNativePassedFunctionPointer000	takes nothing returns nothing
 	return
     endtry
 
-    call PrintConsole ( Str_Concat ( "result: ", thrown ) )
+    call PrintConsole ( Str_Concat ( "result: ", result ) )
 
 endfunction
 
