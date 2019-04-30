@@ -103,4 +103,22 @@ public class FunctionDecl extends Decl implements Visitable {
 	    v.visitFuncDeclBlock(block);
     }
 
+    @Override
+    public String toString() {
+	StringBuilder sb = new StringBuilder(getClass().getName());
+	sb.append("@").append(hashCode()).append("{");
+	sb.append("type=").append(type).append(",");
+	sb.append("name=").append(name).append(",");
+	if (paramTypes != null)
+	    sb.append("numparams=").append(paramTypes.size()).append(",");
+	if (returnType != null)
+	    sb.append("returns=").append(returnType.toString()).append(",");
+	if (lvars != null)
+	    sb.append("numlocals=").append(lvars.size()).append(",");
+	if (block != null)
+	    sb.append("block=").append(block.size());
+	sb.append("}");
+	return sb.toString();
+    }
+
 }

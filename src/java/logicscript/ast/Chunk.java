@@ -62,7 +62,7 @@ public class Chunk implements Visitable {
      * List of all user function declarations
      */
     public List<FunctionDecl> ufuncDecls;
-    
+
     @Override
     public void visit(ChunkVisitor v) throws Exception {
 	if (libImportsDecls != null)
@@ -71,14 +71,14 @@ public class Chunk implements Visitable {
 		while (itx.hasNext())
 		    v.visitImportDecl(itx.next());
 	    }
-	
+
 	if (libExportsDecls != null)
 	    synchronized ( libExportsDecls ) {
 		Iterator<LibraryBlock> itx = libExportsDecls.iterator();
 		while (itx.hasNext())
 		    v.visitExportDecl(itx.next());
 	    }
-	
+
 	if (globalsDecls != null)
 	    synchronized ( globalsDecls ) {
 		Iterator<GlobalsBlock> itx = globalsDecls.iterator();
@@ -94,27 +94,51 @@ public class Chunk implements Visitable {
 		    }
 		}
 	    }
-	
+
 	if (utypeDecls != null)
 	    synchronized ( utypeDecls ) {
 		Iterator<TypeDecl> itx = utypeDecls.iterator();
 		while (itx.hasNext())
 		    v.visitTypeDecl(itx.next());
 	    }
-	
+
 	if (nfuncDecls != null)
 	    synchronized ( nfuncDecls ) {
 		Iterator<FunctionDecl> itx = nfuncDecls.iterator();
 		while (itx.hasNext())
 		    v.visitNFuncDecl(itx.next());
 	    }
-	
+
 	if (ufuncDecls != null)
 	    synchronized ( ufuncDecls ) {
 		Iterator<FunctionDecl> itx = ufuncDecls.iterator();
 		while (itx.hasNext())
 		    v.visitUFuncDecl(itx.next());
 	    }
+    }
+
+    @Override
+    public String toString() {
+	StringBuilder sb = new StringBuilder(getClass().getName());
+	sb.append("@").append(hashCode()).append("{");
+	if (libImportsDecls != null)
+	    sb.append("imports=").append(libImportsDecls.size()).append(",");
+	if (libExportsDecls != null)
+	    sb.append("exports=").append(libExportsDecls.size()).append(",");
+	if (globalsDecls != null)
+	    sb.append("globals=").append(globalsDecls.size()).append(",");
+	if (utypeDecls != null)
+	    sb.append("utypes=").append(utypeDecls.size()).append(",");
+	if (etypeDecls != null)
+	    sb.append("etypes=").append(etypeDecls.size()).append(",");
+	if (mtypeDecls != null)
+	    sb.append("mtypes=").append(mtypeDecls.size()).append(",");
+	if (nfuncDecls != null)
+	    sb.append("nfuncs=").append(nfuncDecls.size()).append(",");
+	if (ufuncDecls != null)
+	    sb.append("ufuncss=").append(ufuncDecls.size());
+	sb.append("}");
+	return sb.toString();
     }
 
     /**
@@ -240,14 +264,14 @@ public class Chunk implements Visitable {
 	 */
 	TypeDecl syntheticGenerated = new TypeDecl(TypeDeclType.UNRESOLVED_TYPE);
 	syntheticGenerated.typeName = name;
-	
+
 	if (this.mtypeDecls == null)
 	    this.mtypeDecls = new LinkedList<>();
-	
+
 	synchronized ( this.mtypeDecls ) {
 	    this.mtypeDecls.add(syntheticGenerated);
 	}
 	return syntheticGenerated;
     }
-    
+
 }
