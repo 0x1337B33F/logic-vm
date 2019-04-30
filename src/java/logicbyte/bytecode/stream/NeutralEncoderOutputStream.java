@@ -31,44 +31,31 @@ public class NeutralEncoderOutputStream {
 	if (s != null && s.length() != 0) {
 	    char[] cbuf = s.toCharArray();
 	    for (int i = 0, j = cbuf.length; i < j; i++)
-		destDataStreamRef.write ( ( byte) cbuf[i]);
+		destDataStreamRef.write((byte) cbuf[i]);
 	}
 	destDataStreamRef.write((byte) 0x00);
     }
 
-    protected void writePackedInt(long v) throws IOException {
-	if (v < 0b00111111)	// word fits as a single byte:
-	    destDataStreamRef.write((byte) (v & 0b00111111));
-	else {
-	    v -= 0b00111111;
-	    if (v < 0b00111111)  // word fits as a byte after next:
-		destDataStreamRef.write((byte) (0b01000000 | (v & 0b00111111)));
-	    else if (v < 0x0000ffff) { // word fits as a short:
-		destDataStreamRef.write((byte) 0b10000000);
-		destDataStreamRef.write((byte) (v & 0x000000ff));
-		destDataStreamRef.write((byte) ((v & 0x0000ff00) >> 8));
-	    } else {
-		v -= 0x0000ffff;
-		if (v < 0xffffffff) {
-		    destDataStreamRef.write((byte) 0b11000001);
-		    destDataStreamRef.write((byte) (v & 0x000000ff));
-		    destDataStreamRef.write((byte) ((v & 0x0000ff00) >> 8));
-		    destDataStreamRef.write((byte) ((v & 0x00ff0000) >> 16));
-		    destDataStreamRef.write((byte) ((v & 0xff000000) >> 24));
-		} else {
-		    destDataStreamRef.write((byte) 0b11000010);
-		    long v1 = v;
-		    for (int i = 0; i < 8; i++) {
-			destDataStreamRef.write((byte) (v1 & 0x00000000000000ff));
-			v1 = v1 >> 8;
-		    }
-		}
-	    }
-	}
+    protected void writePackedInt(long i) throws IOException {
+	writePackedLong(i);
     }
 
     protected void writePackedLong(long l) throws IOException {
-	writePackedInt(l);
+	long v = (0L > l) ? Math.abs(l + 1) : Math.abs(l);
+	byte sign = (byte) ((v != l) ? 0b01000000 : 0b00000000);
+	if (v < 0b00111111)
+	    destDataStreamRef.write((byte) ((v & 0b00111111) | sign));
+	else {
+	    v -= 0b00111111;
+	    int width = 0;
+	    for (long v1 = v; v1 > 0; v1 >>= 8)
+		width++;
+	    if (width > 0b00111111)
+		throw new IOException("number too wide");
+	    destDataStreamRef.write((byte) (0b10000000 | sign | width));
+	    for (int i = 0; i < width; v >>= 8, i++)
+		destDataStreamRef.write((byte) (v & (long) 0x00000000000000ff));
+	}
     }
 
     protected void writeOpcode(Opcode opcodeObj) throws IOException {

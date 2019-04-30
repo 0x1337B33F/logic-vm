@@ -41,33 +41,16 @@ public class NeutralDecoderInputStream {
     }
 
     protected long readPackedLong() throws IOException {
-	byte b0 = srcDataStreamRef.readByte();
-	if ((b0 & 0b11000000) == 0)
-	    return (long) b0;
+	int b0 = srcDataStreamRef.read();
+	boolean sign = (b0 & 0b01000000) != 0;
+	if ((b0 & 0b10000000) == 0)
+	    return (sign) ? (-((long) (b0 & 0b00111111))) - 1 : (long) (b0 & 0b00111111);
 	else {
-	    long accum = 0b00111111;
-	    if ((b0 & 0b01000000) == 0b01000000)
-		return (long) (accum + (b0 & 0b00111111));
-	    else if ((b0 & 0b10000000) == 0b10000000) {
-		accum += srcDataStreamRef.readByte();
-		accum += (srcDataStreamRef.readByte() << 8);
-		return accum;
-	    } else {
-		accum += 0x0000ffff;
-		if ((b0 & 0b11111100) != 0b11000000)
-		    throw new IOException("number format decode failure");
-
-		if ((b0 & 0b00000011) == 0)
-		    throw new IOException("number format decode failure");
-
-		if ((b0 & 0b00000010) == 0b00000010)
-		    for (int i = 0; i < 8; i++)
-			accum += (srcDataStreamRef.readByte() << (i * 8));
-		else
-		    for (int i = 0; i < 4; i++)
-			accum += (srcDataStreamRef.readByte() << (i * 8));
-		return accum;
-	    }
+	    long accum = 0;
+	    for (int width = (b0 & 0b00111111), i = 0; i < width; i++)
+		accum |= ((long) srcDataStreamRef.read() << (i * 8));
+	    accum += (long) 0b00111111;
+	    return (sign) ? (-accum) - 1 : accum;
 	}
     }
 
@@ -81,7 +64,7 @@ public class NeutralDecoderInputStream {
 	    for (int i = 0, j = base.args(); i < j; i++)
 		switch (base.argtype(i)) {
 		    case BOOL_LITERAL:
-			args.add((srcDataStreamRef.readByte() != 0x00) ? true : false);
+			args.add(srcDataStreamRef.readByte() != 0x00);
 			break;
 		    case INT_LITERAL:
 			args.add(srcDataStreamRef.readInt());
