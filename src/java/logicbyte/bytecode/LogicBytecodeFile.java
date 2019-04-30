@@ -309,7 +309,9 @@ public class LogicBytecodeFile {
 	public void setlocals(int[] types, boolean[] arrays) {
 	    if (isnfunc())
 		throw new IllegalStateException("may not set locals on a native function declaration");
-	    if (types.length != arrays.length)
+	    if ((types == null && arrays != null)
+		    || (types != null && arrays == null)
+		    || (types != null && arrays != null && types.length != arrays.length))
 		throw new IllegalStateException("types and arrays must be of same dimension");
 	    this.localTypes = types;
 	    this.localArrays = arrays;
