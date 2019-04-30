@@ -17,7 +17,7 @@ import logicbyte.vm.exception.VMException;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 import logicbyte.vm.runtime.factory.BaseVMClosureFactory;
 import logicbyte.vm.runtime.factory.BaseVMFactory;
-import logictype.ThrowObjectException;
+import logicbyte.vm.exception.ThrowObjectException;
 import static org.junit.Assert.*;
 import org.junit.Before;
 import org.junit.Test;
