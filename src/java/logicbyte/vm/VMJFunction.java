@@ -1,7 +1,7 @@
 package logicbyte.vm;
 
 import java.lang.reflect.InvocationTargetException;
-import logictype.ThrowObjectException;
+import logicbyte.vm.exception.ThrowObjectException;
 
 /**
  * <p>

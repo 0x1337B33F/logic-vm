@@ -14,7 +14,7 @@ import logicbyte.vm.LogicVM;
 import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMJFunction;
-import logictype.ThrowObjectException;
+import logicbyte.vm.exception.ThrowObjectException;
 
 /**
  *
@@ -50,7 +50,7 @@ public class BaseVMJFunctionImpl implements VMJFunction {
 	 *
 	 * @return Any value which shall be placed on the VM stack after execution, or <code>null</code> if no return value.
 	 *
-	 * @throws logictype.ThrowObjectException An object exception box may be thrown, which may be caught type-wise by the bytecode or
+	 * @throws logicbyte.vm.exception.ThrowObjectException An object exception box may be thrown, which may be caught type-wise by the bytecode or
 	 *                                        shall be passed to the invoker of the executor.
 	 *
 	 * @throws Exception                      Any exception may be thrown, which may be caught by bytecode or shall be passed to the

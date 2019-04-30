@@ -7,7 +7,7 @@ import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl.VMJFunctionLambdaInterface;
-import logictype.ThrowObjectException;
+import logicbyte.vm.exception.ThrowObjectException;
 
 /**
  *

@@ -22,7 +22,7 @@ import logicbyte.vm.exception.NoSuchFunctionException;
 import logicbyte.vm.exception.UncaughtUserException;
 import logicbyte.vm.exception.VMException;
 import logictype.Pair;
-import logictype.ThrowObjectException;
+import logicbyte.vm.exception.ThrowObjectException;
 
 /**
  *

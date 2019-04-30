@@ -8,7 +8,7 @@ import logicbyte.vm.exception.UncaughtUserException;
 import logicbyte.vm.exception.VMException;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl.VMJFunctionLambdaInterface;
-import logictype.ThrowObjectException;
+import logicbyte.vm.exception.ThrowObjectException;
 
 /**
  *
