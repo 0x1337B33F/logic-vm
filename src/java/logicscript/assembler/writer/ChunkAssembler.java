@@ -51,7 +51,6 @@ public class ChunkAssembler {
     final LogicBytecodeValidator validator = new LogicBytecodeValidator();
 
     public ChunkAssembler() {
-
     }
 
     /**
