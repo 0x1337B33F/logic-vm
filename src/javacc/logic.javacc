@@ -540,6 +540,7 @@ DebugStatement DEBUG_STMT( Chunk c ): {
 	CFL_STMT_LOOP	: loop ... exitwhen endloop block
 	CFL_STMT_TRY	: try ... catch ... end block
 	CFL_STMT_RAISE  : raise EXPR
+	CFL_STMT_YIELD  : yield (EXPR)?
 	CFL_STMT_RETURN : return EXPR
 */
 ControlFlowStatement CFL_STMT( Chunk c ) : { 
