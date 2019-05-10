@@ -56,7 +56,7 @@ public class DynamicLibraryImpl extends DynamicLibraryFile {
 		    continue;
 
 		String name = f.getName();
-		name = name.substring(0, name.length() - 2);
+		name = name.substring(0, name.lastIndexOf("."));
 		File bytecodeFile = (new File(dir, name + ".lb"));
 
 		if (!bytecodeFile.exists())
@@ -64,7 +64,7 @@ public class DynamicLibraryImpl extends DynamicLibraryFile {
 
 		allocLoadedObj = new DynamicLibraryLoadedObj();
 
-		linkerLoader = new LinkerObjectInputStream(fis = new FileInputStream(f));
+		linkerLoader = new LinkerObjectInputStream(fis = new FileInputStream(f), name);
 		allocLoadedObj.linkerSrc = f;
 		allocLoadedObj.bytecodeSrc = bytecodeFile;
 		allocLoadedObj.linkerObj = linkerLoader.readLinkerObject();
@@ -109,9 +109,11 @@ public class DynamicLibraryImpl extends DynamicLibraryFile {
 		    File f = obj.bytecodeSrc;
 		    if (!f.isFile())
 			throw new DynamicLibraryException("bytecode file not a file");
+		    String name = f.getName();
+		    name = name.substring(0, name.lastIndexOf("."));
 		    FileInputStream fis = null;
 		    try {
-			LogicBytecodeInputStream bytecodeLoader = new LogicBytecodeInputStream(fis = new FileInputStream(f));
+			LogicBytecodeInputStream bytecodeLoader = new LogicBytecodeInputStream(fis = new FileInputStream(f), name);
 			obj.bytecodeObj = bytecodeLoader.readBytecodeFile();
 			fis.close();
 		    } catch (IOException ioex) {
