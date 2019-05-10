@@ -14,6 +14,7 @@ import logicbyte.bytecode.LinkerObjectFile.TypesEntry;
 import logicbyte.bytecode.LogicBytecodeFile;
 import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDecl;
 import logicbyte.bytecode.Opcode;
+import logicbyte.bytecode.Opcode.OpcodeControlBitmask;
 import logicbyte.bytecode.Opcode.Opcodes;
 import logicbyte.bytecode.validate.BytecodeValidationException.IllegalOperandException;
 import logictype.Pair;
@@ -104,9 +105,24 @@ public class LogicBytecodeValidator {
 	BytecodeFunctionDecl[] funcs = bytecode.getAll();
 	for (int i = 0, j = funcs.length; i < j; i++) {
 	    final BytecodeFunctionDecl decl = funcs[i];
+	    validateFunctionCheckOps(linker, bytecode, decl);
 	    validateFunctionCheckJumps(linker, bytecode, decl);
 	    validateFunctionCheckStack(linker, bytecode, decl);
 	    validateFunctionCheckLocalUsage(linker, bytecode, decl);
+	}
+    }
+
+    private void validateFunctionCheckOps(LinkerObjectFile linker, LogicBytecodeFile bytecode, BytecodeFunctionDecl decl) throws BytecodeValidationException {
+	if (decl.isnfunc())
+	    return;
+	FunctionOpcodeList ops = decl.opcodes();
+	for (int i = 0, j = ops.size(); i < j; i++) {
+	    Opcode op = ops.get(i);
+	    if (!op.hasopts() && op.args() <= 0)
+		continue;
+	    if (!(op instanceof OpcodeControlBitmask))
+		throw new IllegalOperandException(decl, i, op, String.format("%s: opcode not an instance of a value container, got %s", op.
+			opcode().name(), op.getClass().getName()));
 	}
     }
 
@@ -310,6 +326,17 @@ public class LogicBytecodeValidator {
 		    if (op.getopt(Opcodes.BITMASK_CMP_CONSUME))
 			stackSize--;
 		    break;
+
+		case INCL:
+		    if (op.getopt(Opcodes.BITMASK_INCL_PRE) || op.getopt(Opcodes.BITMASK_INCL_POST))
+			stackSize++;
+		    break;
+
+		case DECL:
+		    if (op.getopt(Opcodes.BITMASK_DECL_PRE) || op.getopt(Opcodes.BITMASK_DECL_POST))
+			stackSize++;
+		    break;
+
 		default:
 		    throw new IllegalOperandException(decl, i, op, "???: unsupported operand");
 	    }
