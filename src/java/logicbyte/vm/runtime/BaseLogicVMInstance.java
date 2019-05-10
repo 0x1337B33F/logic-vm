@@ -26,6 +26,7 @@ import logicbyte.vm.exception.UnsatisfiedImportException;
 import logicbyte.vm.exception.VMException;
 import logicbyte.vm.factory.VMClosureFactory;
 import logictype.BiDiMap;
+import logictype.HashMapList;
 import logictype.Pair;
 
 /**
@@ -68,6 +69,11 @@ public class BaseLogicVMInstance implements LogicVM {
     final Map<LinkerObjectFile, VMClosure> closureMap;
 
     /**
+     * The map of dependencies
+     */
+    final HashMapList<LinkerObjectFile, LinkerObjectFile> dependencyMap;
+
+    /**
      * The VM global map of all type names, mapped to Java class types
      */
     final BiDiMap<String, Class<?>> jtypeTable;
@@ -97,6 +103,7 @@ public class BaseLogicVMInstance implements LogicVM {
 	this.closureFactory = closureFactory;
 	this.loadedObjMap = new BiDiMap<>();
 	this.closureMap = new HashMap<>();
+	this.dependencyMap = new HashMapList<>();
 	this.jtypeTable = new BiDiMap<>();
 	this.jtypeSuperTypeTable = new HashMap<>();
 	this.jfuncTable = new BiDiMap<>();
@@ -116,13 +123,15 @@ public class BaseLogicVMInstance implements LogicVM {
 		while (itx1.hasNext()) {
 		    LinkerObjectFile loadedLinker = itx1.next();
 		    if (loadedLinker.exports(importsDecl.name)) {
+			this.dependencyMap.add(linker, loadedLinker);
 			flag = true;
 			break;
 		    }
 		}
-		if (!flag)
+		if (!flag) {
+		    LinkerObjectFile loading = null;
 		    try {
-			if (load(callback, loaderImplObj.getBytecodeFor(importsDecl.name)) == null)
+			if (load(callback, loading = loaderImplObj.getBytecodeFor(importsDecl.name)) == null)
 			    throw new UnsatisfiedImportException(this, String.format("Could not load bytecode for import `%s`",
 				    importsDecl.name));
 		    } catch (Exception e) {
@@ -131,6 +140,9 @@ public class BaseLogicVMInstance implements LogicVM {
 			throw new UnsatisfiedImportException(this, String.
 				format("Could not load bytecode for import `%s`", importsDecl.name), e);
 		    }
+		    if (loading != null)
+			this.dependencyMap.add(linker, loading);
+		}
 	    }
 	    VMClosure allocClosure = null;
 	    try {
@@ -144,6 +156,31 @@ public class BaseLogicVMInstance implements LogicVM {
 	    return allocClosure;
 	} else
 	    throw new UnsatisfiedImportException(this, String.format("Could not find bytecode for linker `%s`", linker.toString()));
+    }
+
+    @Override
+    public VMClosure getClosure(LinkerObjectFile linker) {
+	return closureMap.get(linker);
+    }
+
+    @Override
+    public void unload(LinkerObjectFile linker) throws UnsatisfiedImportException {
+	if (linker == null)
+	    throw new IllegalArgumentException();
+
+	if (closureMap.containsKey(linker)) {
+	    Iterator<Entry<LinkerObjectFile, LinkerObjectFile>> itx = this.dependencyMap.iterator();
+	    while (itx.hasNext()) {
+		Entry<LinkerObjectFile, LinkerObjectFile> entry = itx.next();
+		if (entry.getValue().equals(linker))
+		    throw new UnsatisfiedImportException(this, String.format("cannot unload `%s`: the source `%s` is dependant", linker.
+			    source(), entry.getKey().source()));
+	    }
+
+	    closureMap.remove(linker);
+	    loadedObjMap.remove(linker);
+	    dependencyMap.remove(linker);
+	}
     }
 
     @Override
@@ -315,7 +352,7 @@ public class BaseLogicVMInstance implements LogicVM {
 	}
 
 	if (funcDirect == null)
-	    throw new NoSuchFunctionException(this, String.format("No such function: %s", nameOfFunction));
+	    throw new NoSuchFunctionException(this, null, String.format("No such function: %s", nameOfFunction));
 
 	BaseVMFunctionPointerImpl allocPtrObj = new BaseVMFunctionPointerImpl(funcDirect);
 	return allocPtrObj;
