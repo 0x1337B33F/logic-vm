@@ -14,6 +14,7 @@ import logicbyte.vm.LogicVM;
 import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMJFunction;
+import logicbyte.vm.VMJFunctionLambda;
 import logicbyte.vm.exception.ThrowObjectException;
 
 /**
@@ -34,30 +35,6 @@ public class BaseVMJFunctionImpl implements VMJFunction {
     }
 
     private static final Class<?>[] VMJFUNC_SIG = new Class<?>[] {LogicVM.class, VMInvokable.class, VMDebugCallback.class, Object[].class};
-
-    /**
-     * Interface for anonymous function bodies.
-     */
-    public static interface VMJFunctionLambdaInterface {
-
-	/**
-	 * Invoked by the VM when the native function is invoked from bytecode.
-	 *
-	 * @param vm        The virtual machine instance.
-	 * @param executor  The executor instance.
-	 * @param debug     The debugger for the call, or the executor, or <code>null</code> if none is assigned.
-	 * @param arguments The parameters provided to the native function call, removed from the VM stack.
-	 *
-	 * @return Any value which shall be placed on the VM stack after execution, or <code>null</code> if no return value.
-	 *
-	 * @throws logicbyte.vm.exception.ThrowObjectException An object exception box may be thrown, which may be caught type-wise by the bytecode or
-	 *                                        shall be passed to the invoker of the executor.
-	 *
-	 * @throws Exception                      Any exception may be thrown, which may be caught by bytecode or shall be passed to the
-	 *                                        invoker of the executor.
-	 */
-	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] arguments) throws ThrowObjectException, Exception;
-    }
 
     public static Map<String, BaseVMJFunctionImpl> generateFunctionClassStatic(Class<?> klazz) throws NoSuchMethodException, SecurityException {
 	HashMap< String, BaseVMJFunctionImpl> result = new HashMap<>();
@@ -152,7 +129,7 @@ public class BaseVMJFunctionImpl implements VMJFunction {
      * @throws SecurityException     If the current SecurityManager does not allow for reflection, a {@link SecurityException} will be
      *                               thrown.
      */
-    public static BaseVMJFunctionImpl generateFunctionLambda(VMJFunctionLambdaInterface lambda) throws NoSuchMethodException, SecurityException {
+    public static BaseVMJFunctionImpl generateFunctionLambda(VMJFunctionLambda lambda) throws NoSuchMethodException, SecurityException {
 	return new BaseVMJFunctionImpl(lambda, lambda.getClass().getMethod("call", VMJFUNC_SIG));
     }
 
