@@ -236,9 +236,6 @@ function	TestCoFuncCaptureError	    takes nothing returns nothing
     endif
 endfunction
 
-
-endfunction
-
 function	TestCoFuncCall		    takes nothing returns nothing
     local coroutine co0 = Coroutine_Create ( function CoFuncReturnsYieldsValues )
     local coroutine co1 = Coroutine_Create ( function CoFuncYieldsValues )
@@ -290,3 +287,35 @@ function	TestHandleTypeCasting	    takes nothing returns nothing
     call PrintConsole ( Str_Concat ( "The type of other after assignment is ", TypeOf ( other ) ) )
 endfunction
 
+
+/* Test that ASM blocks function: */
+
+function	TestAssemblyDirectFunc000	takes nothing returns nothing
+    asm
+	    PUSHS		"A literal string value"		    ;
+   	    CALL (0x00)		"PrintConsole"  1			    ;
+
+	    PUSHS		"The value of MATH_PI is approximately "    ;
+	    GETGLOBAL		"MATH_PI"				    ;
+	    CALL	(0x01)	"Cast_R2S"	    1			    ;
+	    CALL	(0x01)	"Str_Concat"	    2			    ;
+	    CALL	(0x00)	"PrintConsole"	    1			    ;
+    endasm
+endfunction
+
+/* Test that manual incrementors / decrementors function: */
+
+function	TestUnaryIncrDecrFunc000	takes nothing returns nothing
+    local   integer	counter = 0
+
+    loop
+	exitwhen counter >= 5
+	call PrintConsole ( Str_Concat( "The value of counter is ", Cast_I2S( ++counter ) ) )
+    endloop
+
+    loop
+	exitwhen counter <= 0
+	call PrintConsole ( Str_Concat( "The value of counter is ", Cast_I2S( counter-- ) ) )
+    endloop
+
+endfunction
