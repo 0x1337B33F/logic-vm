@@ -20,23 +20,17 @@ import logicscript.ast.nodes.stmt.ControlFlowStatement;
  * @author Lochie
  */
 public class ForStatement extends ControlFlowStatement implements Closure {
-    
+
     public String local;
-    
-    public String startLocal;
-    
-    public String endLocal;
-    
-    public String byLocal;
-    
+
     public Expression startExpr;
-    
+
     public Expression endExpr;
-    
+
     public Expression byExpr;
-    
+
     public Block thenBlock;
-    
+
     @Override
     public void visit(ChunkVisitor v) throws Exception {
 	if (startExpr != null)
@@ -45,24 +39,24 @@ public class ForStatement extends ControlFlowStatement implements Closure {
 	    v.visitExpression(endExpr);
 	if (byExpr != null)
 	    v.visitExpression(byExpr);
-	
+
 	if (thenBlock != null) {
 	    v.visitClosure(this);
 	    v.visitFuncBlock(thenBlock);
 	    v.visitClosureEnd(this);
 	}
     }
-    
+
     @Override
     public boolean hascvars() {
 	return (local != null);
     }
-    
+
     @Override
     public int numcvars() {
 	return (hascvars()) ? 1 : 0;
     }
-    
+
     @Override
     public String getcvarname(int which) {
 	if (!hascvars())
@@ -71,7 +65,7 @@ public class ForStatement extends ControlFlowStatement implements Closure {
 	    return local;
 	return null;
     }
-    
+
     @Override
     public TypeDecl getcvartype(int which) {
 	if (!hascvars())
@@ -80,5 +74,5 @@ public class ForStatement extends ControlFlowStatement implements Closure {
 	    return TypeDecl.TYPE_INTEGER;
 	return null;
     }
-    
+
 }

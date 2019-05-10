@@ -12,7 +12,7 @@ import logicscript.ast.ChunkVisitor;
 public class UnaryExpression extends Expression {
 
     public static enum UnaryOperation {
-	NUM_NEGATE, NUM_ABSVAL, BIT_NEGATE, BOOL_NOT;
+	NUM_NEGATE, NUM_ABSVAL, NUM_INCREMENT_PRE, NUM_INCREMENT_POST, NUM_DECREMENT_PRE, NUM_DECREMENT_POST, BIT_NEGATE, BOOL_NOT;
 
 	/**
 	 * Forward lookup to the assembled parameter value instance; this is such that the AST need not be

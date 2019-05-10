@@ -6,6 +6,7 @@ options {
     DEBUG_LOOKAHEAD = false;
     ERROR_REPORTING = true;
     BUILD_PARSER = true;
+    STATIC = false;
     BUILD_TOKEN_MANAGER = true;
     SANITY_CHECK = true;
     FORCE_LA_CHECK = true;
@@ -27,6 +28,9 @@ import logicscript.ast.nodes.importexport.*;
 import logicscript.ast.nodes.stmt.*;
 import logicscript.ast.nodes.stmt.cfl.*;
 import logicscript.ast.nodes.stmt.ef.*;
+import logicbyte.bytecode.Opcode;
+import logicbyte.bytecode.Opcode.Opcodes;
+import logicbyte.bytecode.Opcode.OpcodeControlBitmask;
 
 public class LogicScriptParser {
 
@@ -79,7 +83,17 @@ public class LogicScriptParser {
     }
 
     private static int _toint ( String token ) throws NumberFormatException {
-	return Integer.parseInt ( token );
+	if ( token.startsWith ( "0b" ) ) {
+	    token = token.substring(2);
+	    return Integer.parseInt ( token, 2 );
+	} else if ( token.startsWith ("0o") ) {
+	    token = token.substring(2);
+	    return Integer.parseInt ( token, 6 );
+	} else if ( token.startsWith ("0x") ) {
+	    token = token.substring(2);
+	    return Integer.parseInt ( token, 16 );
+	} else
+	    return Integer.parseInt ( token );
     }
 
     private static String _tostr ( String token ) throws ParseException {
@@ -112,12 +126,16 @@ MORE : {
 <WithinMultiLineComment> MORE : {  <~[]> }
 
 TOKEN : { 
-    <INTEGER_LITERAL : <BTENINT> | <OCTINT> | <HEXINT> > |
     
+
+    <INTEGER_LITERAL : <BTENINT> | <OCTINT> | <HEXINT> | <BININT> > |
+
     /** Integers: */
-    <BTENINT: ([ "+", "-" ])? (["0"-"9"])+ >		|
-    <OCTINT: "0o" (["0"-"6"])+>				|
-    <HEXINT: "0x" (["0"-"9", "A"-"F", "a"-"f"])+>	|
+    <BTENINT: ([ "+", "-" ])? (["0"-"9"])+ >							|
+    <OCTINT: "0o" (["0"-"6"])+>									|
+    <HEXINT: "0x" (["0"-"9", "A"-"F", "a"-"f"])+>						|
+    <BININT: "0b" ("0"|"1")("0"|"1")("0"|"1")("0"|"1")("0"|"1")("0"|"1")("0"|"1")("0"|"1") >	|
+
    
     /** String literals: */
     /* FIXME: proper string literals: single-quote, double-quote, escapes */
@@ -215,6 +233,10 @@ TOKEN : {
     <CALLVAR : "callvar"> |
     <SET : "set"> |
 
+	/** (compiler directives) */
+    <ASM: "asm"> |
+    <ENDASM: "endasm"> |
+
     /** Words part of expressions */
     <AND : "and"> |
     <OR : "or"> |
@@ -225,8 +247,8 @@ TOKEN : {
 }
 
 TOKEN : {
-    <IDENTIFIER : ["A"-"Z", "a"-"z", "_"] (["A"-"Z", "a"-"z", "0"-"9", "_", "-"])* > |
-    <LIBSCOPE 	: ["A"-"Z", "a"-"z", "_"] (["A"-"Z", "a"-"z", "0"-"9", "_", "-", ".", "/"])* >
+    <IDENTIFIER : ["A"-"Z", "a"-"z", "_"] (["A"-"Z", "a"-"z", "0"-"9", "_"])* > |
+    <LIBSCOPE 	: ["A"-"Z", "a"-"z", "_"] (["A"-"Z", "a"-"z", "0"-"9", "_", ".", "/"])* >
 }
 
 
@@ -516,13 +538,15 @@ Block BLOCK( Chunk c ) : {
 /** STMT: one of
     CFL: control-flow statement
     FN : function or stack statement
+    ASM: direct assembly (unsafe)
 */
 Statement STMT( Chunk c ): {
     Statement obj0 = null; 
 }{ 
     obj0 = CFL_STMT( c ) { return obj0; } | 
     obj0 = FN_STMT( c ) { return obj0; } | 
-    obj0 = DEBUG_STMT ( c ) { return obj0; } 
+    obj0 = DEBUG_STMT ( c ) { return obj0; } |
+    obj0 = ASM_STMT ( c ) { return obj0; }
 }
 
 /** DEBUG_STMT: debugging prefix of STMT; accepts STMT */
@@ -568,6 +592,77 @@ ExecutionFunctionStatement FN_STMT( Chunk c ) : {
     obj0 = FN_STMT_CALL( c ) { return obj0; } | 
     obj0 = FN_STMT_CALLVAR( c ) { return obj0; } |
     obj0 = FN_STMT_SET( c ) { return obj0; }
+}
+
+/** ASM_STMT: generates direct-assembly node for contained assembly data */
+DirectAssembly ASM_STMT( Chunk c ): {
+    DirectAssembly alloc = new DirectAssembly();
+    alloc.opcodes = new LinkedList();
+    Token t0 = null, t1 = null, t2 = null, t3 = null;
+    Opcode base = null, ext = null;
+    LinkedList arguments = null;
+}{     
+    t0 = <ASM> { tag ( alloc, t0 ); }
+    (
+	(		    /* expansion of (OPCODE_WORD | OPCODE_HEX ) */
+	    t1 = <IDENTIFIER>		{ base = Opcodes.lookupBaseOpcode( t1.image );	} |		/* OPCODE_WORD */
+	    t1 = <INTEGER_LITERAL>	{ base = Opcodes.lookupBaseOpcode ( (byte) _toint(t1.image)); }	/* OPCODE_HEX */
+	)
+
+	(			/* OPCODE_MASK ? */
+	    "("			    /* OPCODE_MASK_START */
+	    t2 = <INTEGER_LITERAL>  /* OPCODE_MASK_VAL */
+	    ")"			    /* OPCODE_MASK_END */
+	)?
+	
+	(			    /* OPCODE_ARGUMENTS ? */
+					/* expansion of (OPCODE_ARGUMENT_*) */
+	    t3 = <TRUE> {			/* OPCODE_ARGUMENT_BOOL_TRUE */
+		if ( arguments == null ) arguments = new LinkedList();
+		arguments.add ( true );
+	    } | 
+
+	    t3 = <FALSE> {		/* OPCODE_ARGUMENT_BOOL_FALSE */
+		if ( arguments == null ) arguments = new LinkedList();
+		arguments.add ( false );
+	    } |
+
+	    t3 = <INTEGER_LITERAL> {	/* OPCODE_ARGUMENT_INTEGER */
+		if ( arguments == null ) arguments = new LinkedList();
+		arguments.add ( _toint( t3.image ) );
+	    } |			
+
+	    t3 = <REAL_LITERAL> {	/* OPCODE_ARGUMENT_REAL */
+		if ( arguments == null ) arguments = new LinkedList();
+		arguments.add ( _toreal ( t3.image ) );
+	    }  |				
+
+	    t3 = <STRING_LITERAL> {	/* OPCODE_ARGUMENT_STRING */
+		if ( arguments == null ) arguments = new LinkedList();
+		arguments.add ( _tostr ( t3.image ) );
+	    }
+	)*
+
+	";" {
+	    try {
+		if ( t2 != null && arguments != null ) 
+		    ext = new OpcodeControlBitmask ( base, (byte) _toint ( t2.image ), arguments );
+		else if ( t2 != null )
+		    ext = new OpcodeControlBitmask ( base, (byte) _toint ( t2.image ) );
+		else if ( arguments != null )
+		    ext = new OpcodeControlBitmask ( base, (byte) 0, arguments );
+	    } catch ( InstantiationException e ) {
+		throw new ParseException ( String.format( "ASM parse exception: %s", e.getMessage() ) );
+	    }
+	    if ( ext != null )	alloc.opcodes.add ( ext );
+	    else		alloc.opcodes.add ( base );
+	    
+	    t1 = t2 = t3 = null;
+	    base = ext = null;
+	    arguments = null;
+	}
+    )*
+    t0 = <ENDASM> { return alloc; }
 }
 
 /***********************
@@ -623,36 +718,14 @@ ForStatement CFL_STMT_FOR( Chunk c ) : {
     ForStatement alloc = new ForStatement();
     Token t0 = null, t1 = null; Expression obj0; Block obj1;
 }{ 
-    t0 = <FOR> { tag ( alloc, t0 ); }				/* FOR IDENTIFIER */
-    t0 = <IDENTIFIER> { alloc.local = t0.image; } 
-    <IN> (							/* IN [IDENTIFIER|EXPR] */
-	    t1 = <IDENTIFIER> { alloc.startLocal = t1.image; }
-	| 
-	    obj0 = EXPR( c ) { alloc.startExpr = obj0; }
-	) 
-    <TO> (							/* TO [IDENTIFIER|EXPR] */
-	    t1 = <IDENTIFIER> { alloc.endLocal = t1.image; }
-	| 
-	    obj0 = EXPR ( c ) { alloc.endExpr = obj0; }
-	)
-    <BY> (							/* BY [IDENTIFIER|EXPR] */
-	    t1 = <IDENTIFIER> { alloc.byLocal = t1.image; }
-	|
-	    obj0 = EXPR ( c ) { alloc.byExpr = obj0; }
-	)
+    t0 = <FOR> { tag ( alloc, t0 ); }				/* FOR */
+    t0 = <IDENTIFIER> { alloc.local = t0.image; }		/* [IDENTIFIER] */
+    <IN> obj0 = EXPR( c ) { alloc.startExpr = obj0; }		/* IN [EXPR] */
+    <TO> obj0 = EXPR ( c ) { alloc.endExpr = obj0; }		/* TO [EXPR] */
+    <BY> obj0 = EXPR ( c ) { alloc.byExpr = obj0; }		/* BY [EXPR] */
     <DO> obj1 = BLOCK( c ) { alloc.thenBlock = obj1; }		/* DO BLOCK */
     <ENDFOR> { return alloc; }					/* ENDFOR */
 } 
-
-
-/** TRY shall now read as follows:
-    
-    <TRY>	BLOCK
-    ( <CATCH>	TYPENAME	IDENTIFIER	<DO> BLOCK )+
-    <ENDTRY>
-
-    so that the expansion generates 1 or more CATCH block(s) of the typename specified. :-) 
-*/
 
 TryCatchStatement CFL_STMT_TRY( Chunk c ) : { 
     TryCatchStatement alloc = new TryCatchStatement(); TryCatchStatement.CatchBlock alloc1 = null;
@@ -813,12 +886,29 @@ Expression EXPR( Chunk c ) : {
     
 }{ 
     ( /** Expand the potential LHS of the BINARY_OPERAND: */
+	( /** OPERAND_UNARY_VAR expansion: */
+	    (	/* one of (NUM_INCREMENT_PRE | NUM_DECREMENT_PRE) ... */
+	        t0 = "++"	{ uo = UnaryExpression.UnaryOperation.NUM_INCREMENT_PRE;    } |
+		t0 = "--"	{ uo = UnaryExpression.UnaryOperation.NUM_DECREMENT_PRE;    }
+	    ) {
+		ret = new UnaryExpression();
+		tag ( ret, t0 );
+		((UnaryExpression)ret).operand = uo;
+	    }
+	    /* then a variable (local) identifier... */
+	    t1 = <IDENTIFIER> {
+		obj0 = new VariableRefExpression();
+		tag ( obj0, t1 );
+		((VariableRefExpression)obj0).nameOfLocalOrGlobalVar = t1.image;
+		((UnaryExpression)ret).rhs = obj0;
+	    }
+	) |
 	( /** OPERAND_UNARY expansion: */
 	    ( /** a UNARY_OPERAND token */
-		t0 = "~"	{ uo = UnaryExpression.UnaryOperation.BIT_NEGATE; }  |
-		t0 = "-"	{ uo = UnaryExpression.UnaryOperation.NUM_NEGATE; }  |
-		t0 = "+"	{ uo = UnaryExpression.UnaryOperation.NUM_ABSVAL; }  |
-		t0 = <NOT>	{ uo = UnaryExpression.UnaryOperation.BOOL_NOT; }
+		t0 = "~"	{ uo = UnaryExpression.UnaryOperation.BIT_NEGATE;	    } |
+		t0 = "-"	{ uo = UnaryExpression.UnaryOperation.NUM_NEGATE;	    } |
+		t0 = "+"	{ uo = UnaryExpression.UnaryOperation.NUM_ABSVAL;	    } |
+		t0 = <NOT>	{ uo = UnaryExpression.UnaryOperation.BOOL_NOT;		    }
 	    ) { 
 		ret = new UnaryExpression ();
 		tag ( ret, t0 );
@@ -901,7 +991,11 @@ Expression EXPR( Chunk c ) : {
 		) ?
 	    ")" { if ( !l0.isEmpty() ) ((FunctionCallVarExpression)ret).params = l0; }
 	) |
-	( /** expansion VAR_REF | CALL_FUNC */
+	( /** expansion FUNCTION_REF: */
+	    t0 = <FUNCTION> { ret = new FunctionRefExpression (); tag ( ret, t0 ); }
+	    t1 = <IDENTIFIER> { ((FunctionRefExpression)ret).nameOfFunction = t1.image; }
+	) |
+	( /** expansion VAR_REF | CALL_FUNC | VAR_REF_ARR */
 	    t0 = <IDENTIFIER> 
 	    ( 
 		( /** expansion for CALL_FUNC */ 
@@ -918,7 +1012,8 @@ Expression EXPR( Chunk c ) : {
 			((FunctionCallExpression)ret).nameOfFunction = t0.image;
 			if ( !l0.isEmpty() ) ((FunctionCallExpression)ret).params = l0;
 		    }
-		) | ( /** expansion for VAR_REF_ARR */ 
+		) | 
+		( /** expansion for VAR_REF_ARR */ 
 		    "["
 		    obj0 = EXPR ( c )
 		    "]" {
@@ -926,6 +1021,20 @@ Expression EXPR( Chunk c ) : {
 			tag ( ret, t0 );
 			((VariableArrayRefExpression)ret).nameOfLocalOrGlobalVar = t0.image;
 			((VariableArrayRefExpression)ret).indexOfArrayExpr = obj0;
+		    }
+		) |
+		( /** expansion for OPERAND_UNARY_VAR: */
+		    (	/* one of (NUM_INCREMENT_POST | NUM_DECREMENT_POST): */
+			t1 = "++"   { uo = UnaryExpression.UnaryOperation.NUM_INCREMENT_POST;	} |
+			t1 = "--"   { uo = UnaryExpression.UnaryOperation.NUM_DECREMENT_POST;	}
+		    ) {
+			ret = new UnaryExpression();
+			tag ( ret, t1 );
+			((UnaryExpression)ret).operand = uo;
+			obj0 = new VariableRefExpression();
+			tag ( obj0, t0 );
+			((VariableRefExpression)obj0).nameOfLocalOrGlobalVar = t0.image;
+			((UnaryExpression)ret).rhs = obj0;
 		    }
 		)
 	    )? 
@@ -938,13 +1047,7 @@ Expression EXPR( Chunk c ) : {
 		}
 	    }
 	) |
-	( 
-	    t0 = <FUNCTION> { ret = new FunctionRefExpression (); tag ( ret, t0 ); }
-	    t1 = <IDENTIFIER> { ((FunctionRefExpression)ret).nameOfFunction = t1.image; }
-	) |
-
-	/** Expansions for booleans: */
-	( 
+	( /** Expansions for booleans: */
 	    <TRUE> { ret = LiteralValue.VALUE_TRUE; } | 
 	    <FALSE> { ret = LiteralValue.VALUE_FALSE; } 
 	) |
