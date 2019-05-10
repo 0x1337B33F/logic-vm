@@ -77,7 +77,6 @@ public class ExpressionParamConverter {
 
     public static UnaryOperation fromBytecodeUnaryToASTUnary(UnaryExpressionParamValueTable bytecodeOpVal) {
 	switch (bytecodeOpVal) {
-
 	    case BIT_NEGATE:
 		return UnaryOperation.BIT_NEGATE;
 	    case BOOL_NOT:
@@ -86,7 +85,6 @@ public class ExpressionParamConverter {
 		return UnaryOperation.NUM_ABSVAL;
 	    case NUM_NEGATE:
 		return UnaryOperation.NUM_NEGATE;
-
 	}
 	return null;
     }
