@@ -35,6 +35,26 @@ public interface LogicVM {
 	    DynamicLibraryException, VMException, UnsatisfiedImportException;
 
     /**
+     * Unload and dispose a global scope for the linker specified. If the linker specified exports declarations that are in use by other
+     * linkers, an exception will be thrown.
+     *
+     * @param linker The linker to unload
+     *
+     * @throws UnsatisfiedImportException If a dependent linker references symbol(s) in the linker being unloaded, an
+     *                                    {@link UnsatisfiedImportException} will be thrown.
+     */
+    public void unload(final LinkerObjectFile linker) throws UnsatisfiedImportException;
+
+    /**
+     * Get the global closure object for the linker, or <code>null</code> if the linker is not loaded.
+     *
+     * @param linker The linker object
+     *
+     * @return The existing global closure object, or <code>null</code>
+     */
+    public VMClosure getClosure(final LinkerObjectFile linker);
+
+    /**
      * Define a native type for this VM instance which has the specified friendly name; the type-name specified shall implicitly extend the
      * VM 'handle' type. The type-name provided shall be used when referencing the Java object in the VM.
      *
