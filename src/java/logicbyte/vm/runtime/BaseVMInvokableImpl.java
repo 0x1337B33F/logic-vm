@@ -1,6 +1,7 @@
 package logicbyte.vm.runtime;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.EmptyStackException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Stack;
@@ -19,10 +20,10 @@ import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMInvokableAccess;
 import logicbyte.vm.VMJFunction;
 import logicbyte.vm.exception.NoSuchFunctionException;
+import logicbyte.vm.exception.ThrowObjectException;
 import logicbyte.vm.exception.UncaughtUserException;
 import logicbyte.vm.exception.VMException;
 import logictype.Pair;
-import logicbyte.vm.exception.ThrowObjectException;
 
 /**
  *
@@ -30,15 +31,17 @@ import logicbyte.vm.exception.ThrowObjectException;
  */
 public class BaseVMInvokableImpl implements VMInvokable {
 
-    protected static class Array {
+    // FIXME: change the visibility from `public` to something more shaded.
+    public static class Array {
 
-	int typeOfArray;
-	int sizeOfArray;
-	Object[] arrayValues;
+	public int typeOfArray;
+	public int sizeOfArray;
+	public Object[] arrayValues;
     }
 
     protected static class Closure {
 
+	int endOfClosureAddress;
 	int startOfClosureLocals;
 	int numberOfClosureLocals;
 	List<Integer> typesOfClosureLocals;
@@ -152,7 +155,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    throw new VMException("tailcall stack restore failure");
 
 	if (nativeCallContext.functionCaughtExceptionObj != null)
-	    throw new UncaughtUserException(instanceObj, tailcallFunc.dereference().closure(), nativeCallContext.functionCaughtExceptionObj);
+	    throw new UncaughtUserException(instanceObj, this, nativeCallContext.functionCaughtExceptionObj);
 
 	return (!nativeCallContext.functionStackStack.isEmpty()) ? nativeCallContext.functionStackStack.pop() : null;
     }
@@ -230,7 +233,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	} else {
 	    VMJFunction jfunc = instanceObj.jfuncTable.get(funcBytecode.name());
 	    if (jfunc == null)
-		throw new NoSuchFunctionException(instanceObj, String.format("native function not found: %s", funcBytecode.
+		throw new NoSuchFunctionException(instanceObj, this, String.format("native function not found: %s", funcBytecode.
 			name()));
 
 	    Pair<VMFunction, FunctionCallContext> nativeContext = enterfunc(debugger, ptr, generatingOp);
@@ -318,7 +321,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		    exec__JMP(func, boundary, op, debugger);
 		    break;
 		case DUP:
-		    boundary.functionStackStack.push(boundary.functionStackStack.peek());
+		    boundary.functionStackStack.push(__peekstackval(boundary, Object.class));
 		    break;
 
 		case PUSHB:
@@ -335,7 +338,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		    break;
 
 		case POP:
-		    boundary.functionStackStack.pop();
+		    __getstackval(boundary, Object.class);
 		    break;
 
 		case FUNCPTR:
@@ -364,6 +367,13 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		    break;
 		case UNOP:
 		    exec__UNOP(func, boundary, op, debugger);
+		    break;
+
+		case INCL:
+		    exec__INCL(func, boundary, op, debugger);
+		    break;
+		case DECL:
+		    exec__DECL(func, boundary, op, debugger);
 		    break;
 
 		case INCLOSURE:
@@ -435,11 +445,15 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
 	    if (debugger != null)
 		debugger.afterop(this, func, op);
+
+	    if (!boundary.functionClosureStack.isEmpty() && boundary.functionClosureStack.size() > 1)
+		if (boundary.programCounterValue > boundary.functionClosureStack.peek().endOfClosureAddress)
+		    boundary.functionClosureStack.pop();
 	}
     }
 
     private void __throw(String message) throws VMException {
-	throw new VMException(instanceObj, (!callStack.isEmpty()) ? callStack.peek().a().closure() : null, message, null);
+	throw new VMException(instanceObj, this, message, null);
     }
 
     private <T> T __getoparg(Opcode o, int slot, Class<? extends T> klazz) throws VMException {
@@ -450,18 +464,37 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private <T> T __getstackval(FunctionCallContext boundary, Class<? extends T> klazz) throws VMException {
-	Object obj = boundary.functionStackStack.pop();
-	if (!klazz.isAssignableFrom(obj.getClass()))
-	    __throw(String.format("Stack value %s is not of type %s", obj.getClass().getName(), klazz.getName()));
-	return (T) obj;
+	try {
+	    Object obj = boundary.functionStackStack.pop();
+	    if (!klazz.isAssignableFrom(obj.getClass()))
+		__throw(String.format("Stack value %s is not of type %s", obj.getClass().getName(), klazz.getName()));
+	    return (T) obj;
+	} catch (EmptyStackException e) {
+	    throw new VMException(instanceObj, this, "function stack empty", e);
+	}
     }
 
-    private Closure __getclosure(FunctionCallContext boundary, int local) {
-	Closure closure = boundary.functionClosureStack.peek();
-	int index = boundary.functionClosureStack.size() - 1;
-	while (closure != null && closure.startOfClosureLocals > local)
-	    closure = boundary.functionClosureStack.get(--index);
-	return closure;
+    private <T> T __peekstackval(FunctionCallContext boundary, Class<? extends T> klazz) throws VMException {
+	try {
+	    Object obj = boundary.functionStackStack.peek();
+	    if (!klazz.isAssignableFrom(obj.getClass()))
+		__throw(String.format("Stack value %s is not of type %s", obj.getClass().getName(), klazz.getName()));
+	    return (T) obj;
+	} catch (EmptyStackException e) {
+	    throw new VMException(instanceObj, this, "function stack empty", e);
+	}
+    }
+
+    private Closure __getclosure(FunctionCallContext boundary, int local) throws VMException {
+	try {
+	    Closure closure = boundary.functionClosureStack.peek();
+	    int index = boundary.functionClosureStack.size() - 1;
+	    while (closure != null && closure.startOfClosureLocals > local)
+		closure = boundary.functionClosureStack.get(--index);
+	    return closure;
+	} catch (EmptyStackException e) {
+	    throw new VMException(instanceObj, this, "empty closure stack", e);
+	}
     }
 
     private <T> T __getlocal(FunctionCallContext boundary, int local, Class<? extends T> klazz) throws VMException {
@@ -517,7 +550,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
     private void __raise(VMDebugCallback debugger, FunctionCallContext boundary, Object raiseValue) throws VMException {
 	if (callStack.isEmpty())
-	    throw new UncaughtUserException(instanceObj, null, raiseValue);
+	    throw new UncaughtUserException(instanceObj, this, raiseValue);
 	if (boundary != callStack.peek().b())
 	    throw new VMException("wrong function context for raise call");
 	if (boundary.functionTryCatchStack.isEmpty() && boundary.contextType != FunctionCallContextType.NATIVE) {
@@ -532,7 +565,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    }
 
 	    if (callStack.isEmpty() || obj == null || obj.b().contextType == FunctionCallContextType.NATIVE)
-		throw new UncaughtUserException(instanceObj, obj.a().closure(), raiseValue);
+		throw new UncaughtUserException(instanceObj, this, raiseValue);
 
 	    final FunctionCallContext newBoundary = obj.b();
 
@@ -545,8 +578,12 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    boundary.functionCaughtExceptionObj = raiseValue;
 	    final Pair<Integer, Integer> functionTryCatchDest = boundary.functionTryCatchStack.peek();
 	    boundary.programCounterValue = functionTryCatchDest.a() - 1;
-	    while (boundary.functionClosureStack.size() > functionTryCatchDest.b())
-		boundary.functionClosureStack.pop();
+	    try {
+		while (boundary.functionClosureStack.size() > functionTryCatchDest.b())
+		    boundary.functionClosureStack.pop();
+	    } catch (EmptyStackException e) {
+		throw new VMException(instanceObj, this, "empty closure stack", e);
+	    }
 	}
     }
 
@@ -576,12 +613,18 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void exec__FUNCPTR(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	boundary.functionStackStack.push(instanceObj.getfunc(func.closure(), __getoparg(o, 0, String.class)));
+	String funcName = __getoparg(o, 0, String.class);
+	VMFunctionPointer pointerObj = instanceObj.getfunc(func.closure(), funcName);
+	if (pointerObj == null) {
+	    __raise(debugger, boundary, String.format("No such function `%s`", funcName));
+	    return;
+	}
+	boundary.functionStackStack.push(pointerObj);
     }
 
     private void exec__RETN(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	if (o.getopt(Opcodes.BITMASK_RETN_RVAL)) {
-	    Object any = boundary.functionStackStack.pop();
+	    Object any = __getstackval(boundary, Object.class);
 	    exitfunc(debugger, func, any);
 	} else
 	    exitfunc(debugger, func, null);
@@ -589,7 +632,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
     private void exec__YIELD(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	if (o.getopt(Opcodes.BITMASK_YIELD_STACK)) {
-	    boundary.functionYieldObj = boundary.functionStackStack.pop();
+	    boundary.functionYieldObj = __getstackval(boundary, Object.class);
 	    yielded = true;
 	} else {
 	    boundary.functionYieldObj = null;
@@ -607,7 +650,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    return;
 	}
 	for (int i = (numArgs - 1); i >= 0; i--)
-	    argvals[i] = boundary.functionStackStack.pop();
+	    argvals[i] = __getstackval(boundary, Object.class);
 	boundary.desiresCallResult = o.getopt(Opcodes.BITMASK_CALL_RVAL);
 	callfunc(debugger, ptr, argvals, o);
     }
@@ -617,7 +660,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	int numArgs = __getoparg(o, 1, Integer.class);
 	Object[] argvals = new Object[ numArgs ];
 	for (int i = (numArgs - 1); i >= 0; i--)
-	    argvals[i] = boundary.functionStackStack.pop();
+	    argvals[i] = __getstackval(boundary, Object.class);
 	VMFunctionPointer ptr = __getlocal(boundary, localNum, VMFunctionPointer.class);
 	if (ptr == null) {
 	    __raise(debugger, boundary, String.format("Attempt to dereference nothing value local %s for function call", localNum));
@@ -632,7 +675,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	int numArgs = __getoparg(o, 1, Integer.class);
 	Object[] argvals = new Object[ numArgs ];
 	for (int i = (numArgs - 1); i >= 0; i--)
-	    argvals[i] = boundary.functionStackStack.pop();
+	    argvals[i] = __getstackval(boundary, Object.class);
 
 	GlobalBox globalBox = instanceObj.getglobal(func.closure(), globalName);
 	if (globalBox == null)
@@ -706,8 +749,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    case NUM_SUB:
 	    case NUM_MUL:
 	    case NUM_DIV: {
-		Object rhs = boundary.functionStackStack.pop();
-		Object lhs = boundary.functionStackStack.pop();
+		Object rhs = __getstackval(boundary, Object.class);
+		Object lhs = __getstackval(boundary, Object.class);
 
 		if (!(rhs instanceof Integer) && !(rhs instanceof Double)) {
 		    __raise(debugger, boundary, String.format("Binary operation right-hand-side must be numeric type"));
@@ -794,7 +837,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    case NUM_POW: {
 
 		int rhs = __getstackval(boundary, Integer.class);
-		Object lhs = boundary.functionStackStack.pop();
+		Object lhs = __getstackval(boundary, Object.class);
 
 		if (!(lhs instanceof Integer) && !(lhs instanceof Double)) {
 		    __raise(debugger, boundary, "Binary operation left-hand-side must be numeric type");
@@ -832,8 +875,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
 	    case VAL_EQ:
 	    case VAL_NEQ: {
-		Object rhs = boundary.functionStackStack.pop();
-		Object lhs = boundary.functionStackStack.pop();
+		Object rhs = __getstackval(boundary, Object.class);
+		Object lhs = __getstackval(boundary, Object.class);
 
 		if (lhs instanceof Integer || lhs instanceof Double || rhs instanceof Integer || rhs instanceof Double) {
 		    Boolean product = null;
@@ -887,8 +930,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    case VAL_GTEQ:
 	    case VAL_LT:
 	    case VAL_LTEQ: {
-		Object rhs = boundary.functionStackStack.pop();
-		Object lhs = boundary.functionStackStack.pop();
+		Object rhs = __getstackval(boundary, Object.class);
+		Object lhs = __getstackval(boundary, Object.class);
 
 		if (!(rhs instanceof Integer) && !(rhs instanceof Double)) {
 		    __raise(debugger, boundary, String.format("Binary operation right-hand-side must be numeric type"));
@@ -971,7 +1014,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
 	    case ILLEGAL:
 		for (int i = 0; i < 2; i++)
-		    boundary.functionStackStack.pop();
+		    __getstackval(boundary, Object.class);
 		break;
 	    default:
 		throw new IllegalStateException();
@@ -994,7 +1037,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
 	    case NUM_ABSVAL:
 	    case NUM_NEGATE: {
-		Object rhs = boundary.functionStackStack.pop();
+		Object rhs = __getstackval(boundary, Object.class);
 		if (rhs instanceof Integer)
 		    switch (asEnum) {
 			case NUM_ABSVAL:
@@ -1024,7 +1067,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    }
 	    break;
 	    case ILLEGAL:
-		boundary.functionStackStack.pop();
+		__getstackval(boundary, Object.class);
 		break;
 
 	    default:
@@ -1032,9 +1075,62 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	}
     }
 
+    private void exec__INCL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
+	int local = __getoparg(o, 0, Integer.class);
+	int localType = __getlocaltype(boundary, local);
+	if (localType != BaseVMTypesTable.TYPENUMBER_INTEGER && localType != BaseVMTypesTable.TYPENUMBER_REAL)
+	    __raise(debugger, boundary, String.format("Increment not permitted on non-numeric type %s", localType));
+
+	if (localType == BaseVMTypesTable.TYPENUMBER_INTEGER) {
+	    int value = __getlocal(boundary, local, Integer.class);
+	    if (o.getopt(Opcodes.BITMASK_INCL_PRE))
+		boundary.functionStackStack.push(value);
+	    value++;
+	    if (o.getopt(Opcodes.BITMASK_INCL_POST))
+		boundary.functionStackStack.push(value);
+	    __setlocal(func, boundary, local, value);
+	} else if (localType == BaseVMTypesTable.TYPENUMBER_REAL) {
+	    double value = __getlocal(boundary, local, Double.class);
+	    if (o.getopt(Opcodes.BITMASK_INCL_PRE))
+		boundary.functionStackStack.push(value);
+	    value++;
+	    if (o.getopt(Opcodes.BITMASK_INCL_POST))
+		boundary.functionStackStack.push(value);
+	    __setlocal(func, boundary, local, value);
+	} else
+	    __throw("unsupported type for increment operation");
+    }
+
+    private void exec__DECL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
+	int local = __getoparg(o, 0, Integer.class);
+	int localType = __getlocaltype(boundary, local);
+	if (localType != BaseVMTypesTable.TYPENUMBER_INTEGER && localType != BaseVMTypesTable.TYPENUMBER_REAL)
+	    __raise(debugger, boundary, String.format("Decrement not permitted on non-numeric type %s", localType));
+
+	if (localType == BaseVMTypesTable.TYPENUMBER_INTEGER) {
+	    int value = __getlocal(boundary, local, Integer.class);
+	    if (o.getopt(Opcodes.BITMASK_DECL_PRE))
+		boundary.functionStackStack.push(value);
+	    value--;
+	    if (o.getopt(Opcodes.BITMASK_DECL_POST))
+		boundary.functionStackStack.push(value);
+	    __setlocal(func, boundary, local, value);
+	} else if (localType == BaseVMTypesTable.TYPENUMBER_REAL) {
+	    double value = __getlocal(boundary, local, Double.class);
+	    if (o.getopt(Opcodes.BITMASK_DECL_PRE))
+		boundary.functionStackStack.push(value);
+	    value--;
+	    if (o.getopt(Opcodes.BITMASK_DECL_POST))
+		boundary.functionStackStack.push(value);
+	    __setlocal(func, boundary, local, value);
+	} else
+	    __throw("unsupported type for decrement operation");
+    }
+
     private void exec__INCLOSURE(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	Closure lastClosure = boundary.functionClosureStack.peek();
 	Closure newClosure = new Closure();
+	newClosure.endOfClosureAddress = __getoparg(o, 0, Integer.class);
 	newClosure.startOfClosureLocals = lastClosure.startOfClosureLocals + lastClosure.numberOfClosureLocals;
 	newClosure.numberOfClosureLocals = 0;
 	newClosure.typesOfClosureLocals = new LinkedList<>();
@@ -1043,57 +1139,69 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void exec__ENDCLOSURE(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	Closure exitClosure = boundary.functionClosureStack.pop();
-	if (exitClosure == callStack.peek().b().functionClosureObj)
-	    __throw("ENDCLOSURE: exited the function root closure");
-	if (boundary.functionClosureStack.isEmpty())
-	    __throw("ENDCLOSURE: the function closure stack is empty");
+	try {
+	    Closure exitClosure = boundary.functionClosureStack.pop();
+	    if (exitClosure == callStack.peek().b().functionClosureObj)
+		__throw("ENDCLOSURE: exited the function root closure");
+	    if (boundary.functionClosureStack.isEmpty())
+		__throw("ENDCLOSURE: the function closure stack is empty");
+	} catch (EmptyStackException e) {
+	    throw new VMException(instanceObj, this, "empty closure stack", e);
+	}
     }
 
     private void exec__NEWUPVAR(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	Closure currentClosure = boundary.functionClosureStack.peek();
-	if (currentClosure.equals(boundary.functionClosureObj))
-	    __throw("NEWUPVAR: cannot define new upvar in non-closure scope");
-	int ptr = currentClosure.startOfClosureLocals + currentClosure.numberOfClosureLocals;
-	currentClosure.numberOfClosureLocals++;
-	if (ptr != __getoparg(o, 1, Integer.class))
-	    __throw(String.format("NEWUPVAR: new upvar defined in slot %s does not match expected lvar slot %s", ptr, __getoparg(o, 1,
-		    Integer.class)));
-	currentClosure.typesOfClosureLocals.add(__getoparg(o, 0, Integer.class));
+	try {
+	    Closure currentClosure = boundary.functionClosureStack.peek();
+	    if (currentClosure.equals(boundary.functionClosureObj))
+		__throw("NEWUPVAR: cannot define new upvar in non-closure scope");
+	    int ptr = currentClosure.startOfClosureLocals + currentClosure.numberOfClosureLocals;
+	    currentClosure.numberOfClosureLocals++;
+	    if (ptr != __getoparg(o, 1, Integer.class))
+		__throw(String.format("NEWUPVAR: new upvar defined in slot %s does not match expected lvar slot %s", ptr, __getoparg(o, 1,
+			Integer.class)));
+	    currentClosure.typesOfClosureLocals.add(__getoparg(o, 0, Integer.class));
 
-	if (o.getopt(Opcodes.BITMASK_NEWUPVAR_ARRAY)) {
-	    Array allocArrayBox = new Array();
-	    allocArrayBox.typeOfArray = __getoparg(o, 0, Integer.class);
-	    allocArrayBox.sizeOfArray = __getstackval(boundary, Integer.class);
-	    allocArrayBox.arrayValues = new Object[ allocArrayBox.sizeOfArray ];
-	    currentClosure.valuesOfClosureLocals.add(allocArrayBox);
-	} else
-	    currentClosure.valuesOfClosureLocals.add(null);
+	    if (o.getopt(Opcodes.BITMASK_NEWUPVAR_ARRAY)) {
+		Array allocArrayBox = new Array();
+		allocArrayBox.typeOfArray = __getoparg(o, 0, Integer.class);
+		allocArrayBox.sizeOfArray = __getstackval(boundary, Integer.class);
+		allocArrayBox.arrayValues = new Object[ allocArrayBox.sizeOfArray ];
+		currentClosure.valuesOfClosureLocals.add(allocArrayBox);
+	    } else
+		currentClosure.valuesOfClosureLocals.add(null);
+	} catch (EmptyStackException e) {
+	    throw new VMException(instanceObj, this, "empty closure stack", e);
+	}
     }
 
     private void exec__NEWARRAY(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	Closure currentClosure = boundary.functionClosureStack.peek();
-	if (!currentClosure.equals(boundary.functionClosureObj))
-	    __throw("NEWARRAY: cannot initialize array in closure scope");
+	try {
+	    Closure currentClosure = boundary.functionClosureStack.peek();
+	    if (!currentClosure.equals(boundary.functionClosureObj))
+		__throw("NEWARRAY: cannot initialize array in closure scope");
 
-	int sizeObj = __getstackval(boundary, Integer.class);
-	int typeNum = __getoparg(o, 0, Integer.class);
-	int localNum = __getoparg(o, 1, Integer.class);
+	    int sizeObj = __getstackval(boundary, Integer.class);
+	    int typeNum = __getoparg(o, 0, Integer.class);
+	    int localNum = __getoparg(o, 1, Integer.class);
 
-	if (currentClosure.typesOfClosureLocals.get(localNum) != typeNum)
-	    __throw("NEWARRAY: cannot initialize array of type to other type");
-	if (!currentClosure.arrayTypeOfClosureLocal.get(localNum))
-	    __throw("NEWARRAY: cannot initialize array into non-array local slot");
+	    if (currentClosure.typesOfClosureLocals.get(localNum) != typeNum)
+		__throw("NEWARRAY: cannot initialize array of type to other type");
+	    if (!currentClosure.arrayTypeOfClosureLocal.get(localNum))
+		__throw("NEWARRAY: cannot initialize array into non-array local slot");
 
-	Array allocArrayBox = new Array();
-	allocArrayBox.typeOfArray = currentClosure.typesOfClosureLocals.get(localNum);
-	allocArrayBox.sizeOfArray = sizeObj;
-	allocArrayBox.arrayValues = new Object[ sizeObj ];
-	currentClosure.valuesOfClosureLocals.set(localNum, allocArrayBox);
+	    Array allocArrayBox = new Array();
+	    allocArrayBox.typeOfArray = currentClosure.typesOfClosureLocals.get(localNum);
+	    allocArrayBox.sizeOfArray = sizeObj;
+	    allocArrayBox.arrayValues = new Object[ sizeObj ];
+	    currentClosure.valuesOfClosureLocals.set(localNum, allocArrayBox);
+	} catch (EmptyStackException e) {
+	    throw new VMException(instanceObj, this, "empty closure stack", e);
+	}
     }
 
     private void exec__SETLOCAL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	__setlocal(func, boundary, __getoparg(o, 0, Integer.class), boundary.functionStackStack.pop());
+	__setlocal(func, boundary, __getoparg(o, 0, Integer.class), __getstackval(boundary, Object.class));
     }
 
     private void exec__SETGLOBAL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
@@ -1249,7 +1357,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void exec__TRY(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	boundary.functionTryCatchStack.push(new Pair<>(__getoparg(o, 0, Integer.class), boundary.functionClosureStack.size()));
+	try {
+	    boundary.functionTryCatchStack.push(new Pair<>(__getoparg(o, 0, Integer.class), boundary.functionClosureStack.size()));
+	} catch (EmptyStackException e) {
+	    throw new VMException(instanceObj, this, "empty closure stack", e);
+	}
     }
 
     private void exec__CATCH(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
@@ -1280,9 +1392,9 @@ public class BaseVMInvokableImpl implements VMInvokable {
     private void exec__CMP(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	Object value = null;
 	if (o.getopt(Opcodes.BITMASK_CMP_CONSUME))
-	    value = boundary.functionStackStack.pop();
+	    value = __getstackval(boundary, Object.class);
 	else
-	    value = boundary.functionStackStack.peek();
+	    value = __peekstackval(boundary, Object.class);
 	if (!(value instanceof Boolean)) {
 	    __raise(debugger, boundary, String.format("Cannot set compare register from non-boolean type"));
 	    return;
