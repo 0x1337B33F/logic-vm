@@ -135,8 +135,8 @@ public class Compiler {
 		}
 
 		try {
-		    dstLinkerObj = new LinkerObjectFile();
-		    dstBytecodeObj = new LogicBytecodeFile();
+		    dstLinkerObj = new LinkerObjectFile(baseName);
+		    dstBytecodeObj = new LogicBytecodeFile(baseName);
 		    compiler.assembleChunk(dstChunkObj, dstLinkerObj, dstBytecodeObj);
 		} catch (LinkerValidationException e) {
 		    System.err.println(String.format("Error when compiling file `%s`:", baseName));
