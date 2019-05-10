@@ -25,6 +25,7 @@ public class AssemblyDumper {
 
     public static void dump(LinkerObjectFile linker, PrintWriter output) {
 	output.print("LinkerObject{");
+	output.print(String.format("Name: `%s`, ", linker.source()));
 	output.print(String.format("Exports: %s, ", linker.exportsTable.size()));
 	output.print(String.format("Imports: %s, ", linker.importsTable.size()));
 	output.print(String.format("Types: %s, ", linker.typesTable.size()));
@@ -46,7 +47,9 @@ public class AssemblyDumper {
     }
 
     public static void dump(LogicBytecodeFile bytecode, PrintWriter output) {
-	output.println("LogicBytecode{}:");
+	output.print("LogicBytecode{");
+	output.print(String.format("Name: `%s`, ", bytecode.source()));
+	output.println("}:");
 	BytecodeFunctionDecl[] funcs = bytecode.getAll();
 	for (BytecodeFunctionDecl decl : funcs)
 	    dumpFunctionDecl(decl, output);

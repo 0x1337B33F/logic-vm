@@ -14,9 +14,12 @@ import logicbyte.bytecode.LinkerObjectFile.TypesEntry;
  * @author Lochie
  */
 public class LinkerObjectInputStream extends NeutralDecoderInputStream {
+    
+    final String sourceName;
 
-    public LinkerObjectInputStream(InputStream i) {
+    public LinkerObjectInputStream(InputStream i, String sourceName) {
 	super(i);
+	this.sourceName = sourceName;
     }
 
     public LinkerObjectFile readLinkerObject() throws IOException {
@@ -39,7 +42,7 @@ public class LinkerObjectInputStream extends NeutralDecoderInputStream {
 		typesTableSz = srcDataStreamRef.readInt(),
 		globalTableSz = srcDataStreamRef.readInt();
 
-	LinkerObjectFile allocLinkerDst = new LinkerObjectFile();
+	LinkerObjectFile allocLinkerDst = new LinkerObjectFile( sourceName );
 
 	if (exportTableSz > 0)
 	    for (int i = 0; i < exportTableSz; i++)

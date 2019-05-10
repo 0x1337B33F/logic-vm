@@ -109,13 +109,23 @@ public class LinkerObjectFile {
 
     }
 
-    public List<ExportsEntry> exportsTable = new LinkedList<>();
+    final String sourceName;
 
-    public List<ImportsEntry> importsTable = new LinkedList<>();
+    public final List<ExportsEntry> exportsTable = new LinkedList<>();
 
-    public List<TypesEntry> typesTable = new LinkedList<>();
+    public final List<ImportsEntry> importsTable = new LinkedList<>();
 
-    public List<GlobalsEntry> globalsTable = new LinkedList<>();
+    public final List<TypesEntry> typesTable = new LinkedList<>();
+
+    public final List<GlobalsEntry> globalsTable = new LinkedList<>();
+
+    public LinkerObjectFile(String sourceName) {
+	this.sourceName = sourceName;
+    }
+
+    public String source() {
+	return this.sourceName;
+    }
 
     public final boolean exports(String name) {
 	if (exportsTable != null && !exportsTable.isEmpty()) {

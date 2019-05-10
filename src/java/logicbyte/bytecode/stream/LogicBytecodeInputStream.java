@@ -14,8 +14,11 @@ import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDeclMutable;
  */
 public class LogicBytecodeInputStream extends NeutralDecoderInputStream {
 
-    public LogicBytecodeInputStream(InputStream i) {
+    final String sourceName;
+
+    public LogicBytecodeInputStream(InputStream i, String sourceName) {
 	super(i);
+	this.sourceName = sourceName;
     }
 
     public LogicBytecodeFile readBytecodeFile() throws IOException {
@@ -33,7 +36,7 @@ public class LogicBytecodeInputStream extends NeutralDecoderInputStream {
 	if (version != (short) 1 || flags != (short) 0)
 	    throw new IOException("Invalid version or flags");
 
-	LogicBytecodeFile allocBytecodeDst = new LogicBytecodeFile();
+	LogicBytecodeFile allocBytecodeDst = new LogicBytecodeFile(sourceName);
 	while (srcDataStreamRef.available() > 0)
 	    allocBytecodeDst.add(readBytecodeFunctionDecl());
 	return allocBytecodeDst;
