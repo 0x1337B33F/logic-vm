@@ -6,7 +6,7 @@ import logicbyte.vm.LogicVM;
 import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
-import logicbyte.vm.runtime.BaseVMJFunctionImpl.VMJFunctionLambdaInterface;
+import logicbyte.vm.VMJFunctionLambda;
 import logicbyte.vm.exception.ThrowObjectException;
 
 /**
@@ -26,7 +26,7 @@ public class RegexpFuncs {
 
     }
 
-    abstract static class RegexpFuncInternal implements VMJFunctionLambdaInterface {
+    abstract static class RegexpFuncInternal implements VMJFunctionLambda {
 
 	@Override
 	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {

@@ -7,7 +7,7 @@ import logicbyte.vm.VMInvokable;
 import logicbyte.vm.exception.UncaughtUserException;
 import logicbyte.vm.exception.VMException;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
-import logicbyte.vm.runtime.BaseVMJFunctionImpl.VMJFunctionLambdaInterface;
+import logicbyte.vm.VMJFunctionLambda;
 import logicbyte.vm.exception.ThrowObjectException;
 
 /**
@@ -28,7 +28,7 @@ public class CoroutineFuncs {
 
     }
 
-    abstract static class CoroutineFuncInternalTyped implements VMJFunctionLambdaInterface {
+    abstract static class CoroutineFuncInternalTyped implements VMJFunctionLambda {
 
 	@Override
 	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
@@ -43,7 +43,7 @@ public class CoroutineFuncs {
 	public abstract Object tailcall(LogicVM vm, VMInvokable executor, VMDebugCallback debug, CoroutineImpl co, Object[] args) throws ThrowObjectException, Exception;
     }
 
-    static class CoroutineFuncInternalReturnTyped<R> implements VMJFunctionLambdaInterface {
+    static class CoroutineFuncInternalReturnTyped<R> implements VMJFunctionLambda {
 
 	final Class<R> theTypeOfR;
 

@@ -7,7 +7,7 @@ import logicbyte.vm.LogicVM;
 import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
-import logicbyte.vm.runtime.BaseVMJFunctionImpl.VMJFunctionLambdaInterface;
+import logicbyte.vm.VMJFunctionLambda;
 import logicbyte.vm.exception.ThrowObjectException;
 
 /**
@@ -32,7 +32,7 @@ public class ListFuncs {
 	return ((List<?>) args[0]).size();
     }
 
-    static class ListAllocatorInternalTyped<T> implements VMJFunctionLambdaInterface {
+    static class ListAllocatorInternalTyped<T> implements VMJFunctionLambda {
 
 	@Override
 	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] arguments) throws ThrowObjectException, Exception {
@@ -47,7 +47,7 @@ public class ListFuncs {
      * @param <T> The class-type of the list.
      * @param <R> The return type of the tailcall method.
      */
-    abstract static class ListFuncInternalTyped<T, R> implements VMJFunctionLambdaInterface {
+    abstract static class ListFuncInternalTyped<T, R> implements VMJFunctionLambda {
 
 	/**
 	 * Class of the generic T
@@ -167,7 +167,7 @@ public class ListFuncs {
 	return ((Iterator<?>) args[0]).hasNext();
     }
 
-    static class IteratorFuncInternalNext<T> implements VMJFunctionLambdaInterface {
+    static class IteratorFuncInternalNext<T> implements VMJFunctionLambda {
 
 	@Override
 	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
