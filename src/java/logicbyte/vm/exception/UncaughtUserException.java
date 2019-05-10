@@ -1,7 +1,7 @@
 package logicbyte.vm.exception;
 
 import logicbyte.vm.LogicVM;
-import logicbyte.vm.VMClosure;
+import logicbyte.vm.VMInvokable;
 
 /**
  *
@@ -11,8 +11,8 @@ public class UncaughtUserException extends VMException {
 
     final Object uncaught;
 
-    public UncaughtUserException(LogicVM vm, VMClosure closure, Object uncaught) {
-	super(vm, closure, null, null);
+    public UncaughtUserException(LogicVM vm, VMInvokable invoker, Object uncaught) {
+	super(vm, invoker, null, null);
 	this.uncaught = uncaught;
     }
 

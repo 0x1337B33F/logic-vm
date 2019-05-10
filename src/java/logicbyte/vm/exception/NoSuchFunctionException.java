@@ -1,6 +1,7 @@
 package logicbyte.vm.exception;
 
 import logicbyte.vm.LogicVM;
+import logicbyte.vm.VMInvokable;
 
 /**
  *
@@ -8,7 +9,7 @@ import logicbyte.vm.LogicVM;
  */
 public class NoSuchFunctionException extends VMException {
 
-    public NoSuchFunctionException(LogicVM vm, String message) {
-	super(vm, message, null);
+    public NoSuchFunctionException(LogicVM vm, VMInvokable invoker, String message) {
+	super(vm, invoker, message, null);
     }
 }
