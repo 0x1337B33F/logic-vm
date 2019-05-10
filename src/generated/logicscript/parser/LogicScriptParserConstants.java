@@ -19,125 +19,131 @@ public interface LogicScriptParserConstants {
   /** RegularExpression Id. */
   int HEXINT = 15;
   /** RegularExpression Id. */
-  int STRING_LITERAL = 16;
+  int BININT = 16;
   /** RegularExpression Id. */
-  int REAL_LITERAL = 17;
+  int STRING_LITERAL = 17;
   /** RegularExpression Id. */
-  int IMPORTS = 18;
+  int REAL_LITERAL = 18;
   /** RegularExpression Id. */
-  int FROM = 19;
+  int IMPORTS = 19;
   /** RegularExpression Id. */
-  int EXPORTS = 20;
+  int FROM = 20;
   /** RegularExpression Id. */
-  int AS = 21;
+  int EXPORTS = 21;
   /** RegularExpression Id. */
-  int GLOBAL = 22;
+  int AS = 22;
   /** RegularExpression Id. */
-  int GLOBALS = 23;
+  int GLOBAL = 23;
   /** RegularExpression Id. */
-  int ENDIMPORTS = 24;
+  int GLOBALS = 24;
   /** RegularExpression Id. */
-  int ENDEXPORTS = 25;
+  int ENDIMPORTS = 25;
   /** RegularExpression Id. */
-  int ENDGLOBALS = 26;
+  int ENDEXPORTS = 26;
   /** RegularExpression Id. */
-  int INTEGER = 27;
+  int ENDGLOBALS = 27;
   /** RegularExpression Id. */
-  int REAL = 28;
+  int INTEGER = 28;
   /** RegularExpression Id. */
-  int BOOLEAN = 29;
+  int REAL = 29;
   /** RegularExpression Id. */
-  int STRING = 30;
+  int BOOLEAN = 30;
   /** RegularExpression Id. */
-  int CODE = 31;
+  int STRING = 31;
   /** RegularExpression Id. */
-  int HANDLE = 32;
+  int CODE = 32;
   /** RegularExpression Id. */
-  int NOTHING = 33;
+  int HANDLE = 33;
   /** RegularExpression Id. */
-  int NULL = 34;
+  int NOTHING = 34;
   /** RegularExpression Id. */
-  int ARRAY = 35;
+  int NULL = 35;
   /** RegularExpression Id. */
-  int LOCAL = 36;
+  int ARRAY = 36;
   /** RegularExpression Id. */
-  int FUNCTION = 37;
+  int LOCAL = 37;
   /** RegularExpression Id. */
-  int ENDFUNCTION = 38;
+  int FUNCTION = 38;
   /** RegularExpression Id. */
-  int TAKES = 39;
+  int ENDFUNCTION = 39;
   /** RegularExpression Id. */
-  int RETURNS = 40;
+  int TAKES = 40;
   /** RegularExpression Id. */
-  int NATIVE = 41;
+  int RETURNS = 41;
   /** RegularExpression Id. */
-  int CONST = 42;
+  int NATIVE = 42;
   /** RegularExpression Id. */
-  int DEBUG = 43;
+  int CONST = 43;
   /** RegularExpression Id. */
-  int TYPE = 44;
+  int DEBUG = 44;
   /** RegularExpression Id. */
-  int EXTENDS = 45;
+  int TYPE = 45;
   /** RegularExpression Id. */
-  int IF = 46;
+  int EXTENDS = 46;
   /** RegularExpression Id. */
-  int THEN = 47;
+  int IF = 47;
   /** RegularExpression Id. */
-  int ELSEIF = 48;
+  int THEN = 48;
   /** RegularExpression Id. */
-  int ELSE = 49;
+  int ELSEIF = 49;
   /** RegularExpression Id. */
-  int ENDIF = 50;
+  int ELSE = 50;
   /** RegularExpression Id. */
-  int LOOP = 51;
+  int ENDIF = 51;
   /** RegularExpression Id. */
-  int ENDLOOP = 52;
+  int LOOP = 52;
   /** RegularExpression Id. */
-  int EXITWHEN = 53;
+  int ENDLOOP = 53;
   /** RegularExpression Id. */
-  int FOR = 54;
+  int EXITWHEN = 54;
   /** RegularExpression Id. */
-  int IN = 55;
+  int FOR = 55;
   /** RegularExpression Id. */
-  int TO = 56;
+  int IN = 56;
   /** RegularExpression Id. */
-  int BY = 57;
+  int TO = 57;
   /** RegularExpression Id. */
-  int DO = 58;
+  int BY = 58;
   /** RegularExpression Id. */
-  int ENDFOR = 59;
+  int DO = 59;
   /** RegularExpression Id. */
-  int TRY = 60;
+  int ENDFOR = 60;
   /** RegularExpression Id. */
-  int CATCH = 61;
+  int TRY = 61;
   /** RegularExpression Id. */
-  int ENDTRY = 62;
+  int CATCH = 62;
   /** RegularExpression Id. */
-  int RAISE = 63;
+  int ENDTRY = 63;
   /** RegularExpression Id. */
-  int RETURN = 64;
+  int RAISE = 64;
   /** RegularExpression Id. */
-  int YIELD = 65;
+  int RETURN = 65;
   /** RegularExpression Id. */
-  int CALL = 66;
+  int YIELD = 66;
   /** RegularExpression Id. */
-  int CALLVAR = 67;
+  int CALL = 67;
   /** RegularExpression Id. */
-  int SET = 68;
+  int CALLVAR = 68;
   /** RegularExpression Id. */
-  int AND = 69;
+  int SET = 69;
   /** RegularExpression Id. */
-  int OR = 70;
+  int ASM = 70;
   /** RegularExpression Id. */
-  int NOT = 71;
+  int ENDASM = 71;
   /** RegularExpression Id. */
-  int TRUE = 72;
+  int AND = 72;
   /** RegularExpression Id. */
-  int FALSE = 73;
+  int OR = 73;
   /** RegularExpression Id. */
-  int IDENTIFIER = 74;
+  int NOT = 74;
   /** RegularExpression Id. */
-  int LIBSCOPE = 75;
+  int TRUE = 75;
+  /** RegularExpression Id. */
+  int FALSE = 76;
+  /** RegularExpression Id. */
+  int IDENTIFIER = 77;
+  /** RegularExpression Id. */
+  int LIBSCOPE = 78;
 
   /** Lexical state. */
   int DEFAULT = 0;
@@ -164,6 +170,7 @@ public interface LogicScriptParserConstants {
     "<BTENINT>",
     "<OCTINT>",
     "<HEXINT>",
+    "<BININT>",
     "<STRING_LITERAL>",
     "<REAL_LITERAL>",
     "\"imports\"",
@@ -217,6 +224,8 @@ public interface LogicScriptParserConstants {
     "\"call\"",
     "\"callvar\"",
     "\"set\"",
+    "\"asm\"",
+    "\"endasm\"",
     "\"and\"",
     "\"or\"",
     "\"not\"",
@@ -231,6 +240,9 @@ public interface LogicScriptParserConstants {
     "\"=\"",
     "\"(\"",
     "\")\"",
+    "\";\"",
+    "\"++\"",
+    "\"--\"",
     "\"~\"",
     "\"-\"",
     "\"+\"",

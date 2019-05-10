@@ -13,6 +13,9 @@ import logicscript.ast.nodes.importexport.*;
 import logicscript.ast.nodes.stmt.*;
 import logicscript.ast.nodes.stmt.cfl.*;
 import logicscript.ast.nodes.stmt.ef.*;
+import logicbyte.bytecode.Opcode;
+import logicbyte.bytecode.Opcode.Opcodes;
+import logicbyte.bytecode.Opcode.OpcodeControlBitmask;
 
 public class LogicScriptParser implements LogicScriptParserConstants {
 
@@ -65,7 +68,17 @@ public class LogicScriptParser implements LogicScriptParserConstants {
     }
 
     private static int _toint ( String token ) throws NumberFormatException {
-        return Integer.parseInt ( token );
+        if ( token.startsWith ( "0b" ) ) {
+            token = token.substring(2);
+            return Integer.parseInt ( token, 2 );
+        } else if ( token.startsWith ("0o") ) {
+            token = token.substring(2);
+            return Integer.parseInt ( token, 6 );
+        } else if ( token.startsWith ("0x") ) {
+            token = token.substring(2);
+            return Integer.parseInt ( token, 16 );
+        } else
+            return Integer.parseInt ( token );
     }
 
     private static String _tostr ( String token ) throws ParseException {
@@ -77,7 +90,7 @@ public class LogicScriptParser implements LogicScriptParserConstants {
     }
 
 /** Top level production */
-  static final public void SCRIPT(Chunk alloc) throws ParseException {LibraryBlock obj0; GlobalsBlock obj1; Decl obj2;
+  final public void SCRIPT(Chunk alloc) throws ParseException {LibraryBlock obj0; GlobalsBlock obj1; Decl obj2;
     label_1:
     while (true) {
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
@@ -151,7 +164,7 @@ if ( obj2 instanceof FunctionDecl ) {
 /**********************************************
  ** && IMPORTS & EXPORTS TABLES           && **
 ***********************************************/
-  static final public 
+  final public 
 LibraryBlock IMPORTSSECTION() throws ParseException {LibraryBlock alloc = new LibraryBlock ( LibraryBlock.BlockType.IMPORTS );
     Token t0 = null; LibraryReference obj0 = null;
     t0 = jj_consume_token(IMPORTS);
@@ -193,7 +206,7 @@ alloc.symbol = t0.image;
     throw new Error("Missing return statement in function");
   }
 
-  static final public LibraryBlock EXPORTSSECTION() throws ParseException {LibraryBlock alloc = new LibraryBlock ( LibraryBlock.BlockType.EXPORTS );
+  final public LibraryBlock EXPORTSSECTION() throws ParseException {LibraryBlock alloc = new LibraryBlock ( LibraryBlock.BlockType.EXPORTS );
     Token t0 = null; LibraryReference obj0 = null;
     t0 = jj_consume_token(EXPORTS);
 tag ( alloc, t0 );
@@ -234,7 +247,7 @@ alloc.symbol = t0.image;
     throw new Error("Missing return statement in function");
   }
 
-  static final public LibraryReference LIBREF() throws ParseException {LibraryReference alloc = null;
+  final public LibraryReference LIBREF() throws ParseException {LibraryReference alloc = null;
     Token t0 = null;
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case TYPE:{
@@ -264,7 +277,7 @@ alloc.tokens.add ( t0.image );
       label_4:
       while (true) {
         switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-        case 76:{
+        case 79:{
           ;
           break;
           }
@@ -272,15 +285,15 @@ alloc.tokens.add ( t0.image );
           jj_la1[7] = jj_gen;
           break label_4;
         }
-        jj_consume_token(76);
+        jj_consume_token(79);
         t0 = jj_consume_token(IDENTIFIER);
 alloc.tokens.add ( t0.image );
       }
 {if ("" != null) return alloc;}
       break;
       }
-    case 77:{
-      jj_consume_token(77);
+    case 80:{
+      jj_consume_token(80);
 alloc.isWildcard = true; {if ("" != null) return alloc;}
       break;
       }
@@ -295,7 +308,7 @@ alloc.isWildcard = true; {if ("" != null) return alloc;}
 /**********************************************
  ** && GLOBALS DECLARATIONS               && **
 ***********************************************/
-  static final public 
+  final public 
 GlobalsBlock GLOBALSSECTION(Chunk c) throws ParseException {GlobalsBlock heap = new GlobalsBlock();
     GlobalsVarDecl alloc = null;
     Token t0 = null; TypeDecl obj0 = null; Expression obj1 = null;
@@ -310,10 +323,10 @@ tag ( heap, t0 );
 alloc = new GlobalsVarDecl ( ); alloc.isArrayType = true; alloc.valueType = obj0;
         t0 = jj_consume_token(IDENTIFIER);
 alloc.nameOfGlobalVar = t0.image;
-        jj_consume_token(78);
+        jj_consume_token(81);
         obj1 = EXPR(c);
 alloc.rhs = obj1;
-        jj_consume_token(79);
+        jj_consume_token(82);
 heap.add ( alloc );
         break;
         }
@@ -328,13 +341,13 @@ heap.add ( alloc );
 alloc = new GlobalsVarDecl ( ); alloc.isArrayType = false; alloc.valueType = obj0;
         t0 = jj_consume_token(IDENTIFIER);
 alloc.nameOfGlobalVar = t0.image;
-        jj_consume_token(80);
+        jj_consume_token(83);
         obj1 = EXPR(c);
 alloc.rhs = obj1; heap.add ( alloc );
         label_6:
         while (true) {
           switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-          case 76:{
+          case 79:{
             ;
             break;
             }
@@ -342,11 +355,11 @@ alloc.rhs = obj1; heap.add ( alloc );
             jj_la1[9] = jj_gen;
             break label_6;
           }
-          jj_consume_token(76);
+          jj_consume_token(79);
 alloc = new GlobalsVarDecl ( ); alloc.isArrayType = false; alloc.valueType = obj0;
           t0 = jj_consume_token(IDENTIFIER);
 alloc.nameOfGlobalVar = t0.image;
-          jj_consume_token(80);
+          jj_consume_token(83);
           obj1 = EXPR(c);
 alloc.rhs = obj1; heap.add ( alloc );
         }
@@ -388,7 +401,7 @@ alloc.rhs = obj1; heap.add ( alloc );
     NFUNC : native function declaration
     UFUNC : user function declaration
 */
-  static final public Decl DECL(Chunk c) throws ParseException {Decl obj = null;
+  final public Decl DECL(Chunk c) throws ParseException {Decl obj = null;
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case TYPE:{
       obj = UTYPE_DECL(c);
@@ -417,7 +430,7 @@ alloc.rhs = obj1; heap.add ( alloc );
 	EXTENDS_HANDLE: extends the handle (pointer) type
 	EXTENDS_TYPENAME: extends a user type declaration
 */
-  static final public TypeDecl UTYPE_DECL(Chunk c) throws ParseException {TypeDecl alloc = null;
+  final public TypeDecl UTYPE_DECL(Chunk c) throws ParseException {TypeDecl alloc = null;
     Token t0 = null, t1 = null, t2 = null;
     t0 = jj_consume_token(TYPE);
     t1 = jj_consume_token(IDENTIFIER);
@@ -447,7 +460,7 @@ alloc = new TypeDecl ( TypeDecl.TypeDeclType.EXTENDS_TYPENAME ); tag ( alloc, t0
   }
 
 /** NFUNC_DECL: a native (Java) function declaration, body-less */
-  static final public FunctionDecl NFUNC_DECL(Chunk c) throws ParseException {FunctionDecl alloc = null;
+  final public FunctionDecl NFUNC_DECL(Chunk c) throws ParseException {FunctionDecl alloc = null;
     Token t0 = null;
     t0 = jj_consume_token(NATIVE);
     jj_consume_token(FUNCTION);
@@ -460,7 +473,7 @@ alloc.name = t0.image;
   }
 
 /** UFUNC_DECL: a user-function declaration */
-  static final public FunctionDecl UFUNC_DECL(Chunk c) throws ParseException {FunctionDecl alloc = null; FunctionLVarDecl alloc1 = null;
+  final public FunctionDecl UFUNC_DECL(Chunk c) throws ParseException {FunctionDecl alloc = null; FunctionLVarDecl alloc1 = null;
     Token t0 = null, t2 = null; TypeDecl t1 = null; Block obj0 = null; Expression obj1 = null;
     t0 = jj_consume_token(FUNCTION);
 alloc = new FunctionDecl ( FunctionDecl.FunctionDeclType.USER ); tag ( alloc, t0 );
@@ -484,9 +497,9 @@ alloc.name = t0.image;
         jj_consume_token(ARRAY);
         t1 = TYPENAME(c);
         t2 = jj_consume_token(IDENTIFIER);
-        jj_consume_token(78);
+        jj_consume_token(81);
         obj1 = EXPR(c);
-        jj_consume_token(79);
+        jj_consume_token(82);
 if ( alloc.lvars == null ) alloc.lvars = new LinkedList();
                     alloc1 = new FunctionLVarDecl ( t2.image, t1, obj1, true ); tag ( alloc1, t0 ); alloc.lvars.add ( alloc1 );
         break;
@@ -502,8 +515,8 @@ if ( alloc.lvars == null ) alloc.lvars = new LinkedList();
         t2 = jj_consume_token(IDENTIFIER);
 obj1 = null;
         switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-        case 80:{
-          jj_consume_token(80);
+        case 83:{
+          jj_consume_token(83);
           obj1 = EXPR(c);
           break;
           }
@@ -516,7 +529,7 @@ if ( alloc.lvars == null ) alloc.lvars = new LinkedList();
         label_8:
         while (true) {
           switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-          case 76:{
+          case 79:{
             ;
             break;
             }
@@ -524,12 +537,12 @@ if ( alloc.lvars == null ) alloc.lvars = new LinkedList();
             jj_la1[16] = jj_gen;
             break label_8;
           }
-          jj_consume_token(76);
+          jj_consume_token(79);
           t2 = jj_consume_token(IDENTIFIER);
 obj1 = null;
           switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-          case 80:{
-            jj_consume_token(80);
+          case 83:{
+            jj_consume_token(83);
             obj1 = EXPR(c);
             break;
             }
@@ -558,7 +571,7 @@ alloc.block = obj0;
 /** _FUNC_DECL_SIG: function declaration signature, TAKES [params|NOTHING] RETURNS [type|NOTHING] 
 	mutates the functiondecl allocation provided 
 */
-  static final public void _FUNC_DECL_SIG(Chunk c, FunctionDecl t) throws ParseException {TypeDecl obj0 = null;
+  final public void _FUNC_DECL_SIG(Chunk c, FunctionDecl t) throws ParseException {TypeDecl obj0 = null;
     jj_consume_token(TAKES);
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case INTEGER:
@@ -606,7 +619,7 @@ t.returnType = TypeDecl.TYPE_NOTHING;
   }
 
 /** _FUNC_DECL_PARAMS: function declaration parameters parser, [type] [varname][, [type] [varname][, [type][varname].... ]] */
-  static final public void _FUNC_DECL_PARAMS(Chunk c, FunctionDecl t) throws ParseException {TypeDecl obj0 = null; Token t0 = null;
+  final public void _FUNC_DECL_PARAMS(Chunk c, FunctionDecl t) throws ParseException {TypeDecl obj0 = null; Token t0 = null;
     obj0 = TYPENAME(c);
     t0 = jj_consume_token(IDENTIFIER);
 if ( t.paramNames == null ) t.paramNames = new LinkedList();
@@ -616,7 +629,7 @@ if ( t.paramNames == null ) t.paramNames = new LinkedList();
     label_9:
     while (true) {
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-      case 76:{
+      case 79:{
         ;
         break;
         }
@@ -624,7 +637,7 @@ if ( t.paramNames == null ) t.paramNames = new LinkedList();
         jj_la1[21] = jj_gen;
         break label_9;
       }
-      jj_consume_token(76);
+      jj_consume_token(79);
       obj0 = TYPENAME(c);
       t0 = jj_consume_token(IDENTIFIER);
 if ( t.paramNames == null ) t.paramNames = new LinkedList();
@@ -642,7 +655,7 @@ if ( t.paramNames == null ) t.paramNames = new LinkedList();
     DECL_LOCAL: local declarations
     STMT : one or more statement(s)
 */
-  static final public Block BLOCK(Chunk c) throws ParseException {Block alloc = new Block();
+  final public Block BLOCK(Chunk c) throws ParseException {Block alloc = new Block();
     Statement obj0 = null;
     label_10:
     while (true) {
@@ -658,7 +671,8 @@ if ( t.paramNames == null ) t.paramNames = new LinkedList();
       case YIELD:
       case CALL:
       case CALLVAR:
-      case SET:{
+      case SET:
+      case ASM:{
         ;
         break;
         }
@@ -676,8 +690,9 @@ alloc.add ( obj0 );
 /** STMT: one of
     CFL: control-flow statement
     FN : function or stack statement
+    ASM: direct assembly (unsafe)
 */
-  static final public Statement STMT(Chunk c) throws ParseException {Statement obj0 = null;
+  final public Statement STMT(Chunk c) throws ParseException {Statement obj0 = null;
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case IF:
     case LOOP:
@@ -703,6 +718,11 @@ alloc.add ( obj0 );
 {if ("" != null) return obj0;}
       break;
       }
+    case ASM:{
+      obj0 = ASM_STMT(c);
+{if ("" != null) return obj0;}
+      break;
+      }
     default:
       jj_la1[23] = jj_gen;
       jj_consume_token(-1);
@@ -712,7 +732,7 @@ alloc.add ( obj0 );
   }
 
 /** DEBUG_STMT: debugging prefix of STMT; accepts STMT */
-  static final public DebugStatement DEBUG_STMT(Chunk c) throws ParseException {DebugStatement alloc = new DebugStatement();
+  final public DebugStatement DEBUG_STMT(Chunk c) throws ParseException {DebugStatement alloc = new DebugStatement();
     Statement obj0 = null;
     jj_consume_token(DEBUG);
     obj0 = STMT(c);
@@ -726,9 +746,10 @@ alloc.statement = obj0; {if ("" != null) return alloc;}
 	CFL_STMT_LOOP	: loop ... exitwhen endloop block
 	CFL_STMT_TRY	: try ... catch ... end block
 	CFL_STMT_RAISE  : raise EXPR
+	CFL_STMT_YIELD  : yield (EXPR)?
 	CFL_STMT_RETURN : return EXPR
 */
-  static final public ControlFlowStatement CFL_STMT(Chunk c) throws ParseException {ControlFlowStatement obj0 = null;
+  final public ControlFlowStatement CFL_STMT(Chunk c) throws ParseException {ControlFlowStatement obj0 = null;
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case IF:{
       obj0 = CFL_STMT_IF(c);
@@ -783,7 +804,7 @@ alloc.statement = obj0; {if ("" != null) return alloc;}
 	FN_STMT_CALLVAR : call ufunction assigned to var EXPR
 	FN_STMT_SET	: set local variable to EXPR on RHS
 */
-  static final public ExecutionFunctionStatement FN_STMT(Chunk c) throws ParseException {ExecutionFunctionStatement obj0 = null;
+  final public ExecutionFunctionStatement FN_STMT(Chunk c) throws ParseException {ExecutionFunctionStatement obj0 = null;
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case CALL:{
       obj0 = FN_STMT_CALL(c);
@@ -808,10 +829,142 @@ alloc.statement = obj0; {if ("" != null) return alloc;}
     throw new Error("Missing return statement in function");
   }
 
+/** ASM_STMT: generates direct-assembly node for contained assembly data */
+  final public DirectAssembly ASM_STMT(Chunk c) throws ParseException {DirectAssembly alloc = new DirectAssembly();
+    alloc.opcodes = new LinkedList();
+    Token t0 = null, t1 = null, t2 = null, t3 = null;
+    Opcode base = null, ext = null;
+    LinkedList arguments = null;
+    t0 = jj_consume_token(ASM);
+tag ( alloc, t0 );
+    label_11:
+    while (true) {
+      switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
+      case INTEGER_LITERAL:
+      case IDENTIFIER:{
+        ;
+        break;
+        }
+      default:
+        jj_la1[26] = jj_gen;
+        break label_11;
+      }
+      switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
+      case IDENTIFIER:{
+        /* expansion of (OPCODE_WORD | OPCODE_HEX ) */
+                    t1 = jj_consume_token(IDENTIFIER);
+base = Opcodes.lookupBaseOpcode( t1.image );
+        break;
+        }
+      case INTEGER_LITERAL:{
+        /* OPCODE_WORD */
+                    t1 = jj_consume_token(INTEGER_LITERAL);
+base = Opcodes.lookupBaseOpcode ( (byte) _toint(t1.image));
+        break;
+        }
+      default:
+        jj_la1[27] = jj_gen;
+        jj_consume_token(-1);
+        throw new ParseException();
+      }
+      switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
+      case 84:{
+        jj_consume_token(84);
+        /* OPCODE_MASK_START */
+                    t2 = jj_consume_token(INTEGER_LITERAL);
+        jj_consume_token(85);
+        break;
+        }
+      default:
+        jj_la1[28] = jj_gen;
+        ;
+      }
+      label_12:
+      while (true) {
+        switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
+        case INTEGER_LITERAL:
+        case STRING_LITERAL:
+        case REAL_LITERAL:
+        case TRUE:
+        case FALSE:{
+          ;
+          break;
+          }
+        default:
+          jj_la1[29] = jj_gen;
+          break label_12;
+        }
+        switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
+        case TRUE:{
+          /* OPCODE_ARGUMENTS ? */
+                                                  /* expansion of (OPCODE_ARGUMENT_*) */
+                      t3 = jj_consume_token(TRUE);
+/* OPCODE_ARGUMENT_BOOL_TRUE */
+                if ( arguments == null ) arguments = new LinkedList();
+                arguments.add ( true );
+          break;
+          }
+        case FALSE:{
+          t3 = jj_consume_token(FALSE);
+/* OPCODE_ARGUMENT_BOOL_FALSE */
+                if ( arguments == null ) arguments = new LinkedList();
+                arguments.add ( false );
+          break;
+          }
+        case INTEGER_LITERAL:{
+          t3 = jj_consume_token(INTEGER_LITERAL);
+/* OPCODE_ARGUMENT_INTEGER */
+                if ( arguments == null ) arguments = new LinkedList();
+                arguments.add ( _toint( t3.image ) );
+          break;
+          }
+        case REAL_LITERAL:{
+          t3 = jj_consume_token(REAL_LITERAL);
+/* OPCODE_ARGUMENT_REAL */
+                if ( arguments == null ) arguments = new LinkedList();
+                arguments.add ( _toreal ( t3.image ) );
+          break;
+          }
+        case STRING_LITERAL:{
+          t3 = jj_consume_token(STRING_LITERAL);
+/* OPCODE_ARGUMENT_STRING */
+                if ( arguments == null ) arguments = new LinkedList();
+                arguments.add ( _tostr ( t3.image ) );
+          break;
+          }
+        default:
+          jj_la1[30] = jj_gen;
+          jj_consume_token(-1);
+          throw new ParseException();
+        }
+      }
+      jj_consume_token(86);
+try {
+                if ( t2 != null && arguments != null )
+                    ext = new OpcodeControlBitmask ( base, (byte) _toint ( t2.image ), arguments );
+                else if ( t2 != null )
+                    ext = new OpcodeControlBitmask ( base, (byte) _toint ( t2.image ) );
+                else if ( arguments != null )
+                    ext = new OpcodeControlBitmask ( base, (byte) 0, arguments );
+            } catch ( InstantiationException e ) {
+                {if (true) throw new ParseException ( String.format( "ASM parse exception: %s", e.getMessage() ) );}
+            }
+            if ( ext != null )  alloc.opcodes.add ( ext );
+            else                alloc.opcodes.add ( base );
+
+            t1 = t2 = t3 = null;
+            base = ext = null;
+            arguments = null;
+    }
+    t0 = jj_consume_token(ENDASM);
+{if ("" != null) return alloc;}
+    throw new Error("Missing return statement in function");
+  }
+
 /***********************
  * Control-flow statements :
  ***********************/
-  static final public 
+  final public 
 IfStatement CFL_STMT_IF(Chunk c) throws ParseException {IfStatement alloc = new IfStatement();
     Token t0 = null; Expression obj0 = null; Block obj1 = null;
     /** at least one first condexpr & block must be defined...: */
@@ -825,7 +978,7 @@ alloc.conditionalExpr = obj0;
         alloc.thenBlock = obj1;
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case ELSEIF:{
-      label_11:
+      label_13:
       while (true) {
         jj_consume_token(ELSEIF);
         /* ELSEIF EXPR THEN BLOCK */
@@ -842,14 +995,14 @@ if ( alloc.elseIfCondExprs == null ) alloc.elseIfCondExprs = new LinkedList();
           break;
           }
         default:
-          jj_la1[26] = jj_gen;
-          break label_11;
+          jj_la1[31] = jj_gen;
+          break label_13;
         }
       }
       break;
       }
     default:
-      jj_la1[27] = jj_gen;
+      jj_la1[32] = jj_gen;
       ;
     }
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
@@ -861,7 +1014,7 @@ alloc.elseBlock = obj1;
       break;
       }
     default:
-      jj_la1[28] = jj_gen;
+      jj_la1[33] = jj_gen;
       ;
     }
     jj_consume_token(ENDIF);
@@ -870,7 +1023,7 @@ alloc.elseBlock = obj1;
     throw new Error("Missing return statement in function");
   }
 
-  static final public LoopStatement CFL_STMT_LOOP(Chunk c) throws ParseException {LoopStatement alloc = new LoopStatement();
+  final public LoopStatement CFL_STMT_LOOP(Chunk c) throws ParseException {LoopStatement alloc = new LoopStatement();
     Token t0 = null; Block obj0 = null;
     t0 = jj_consume_token(LOOP);
 tag ( alloc, t0 );
@@ -881,100 +1034,22 @@ alloc.statements = obj0;
     throw new Error("Missing return statement in function");
   }
 
-  static final public ForStatement CFL_STMT_FOR(Chunk c) throws ParseException {ForStatement alloc = new ForStatement();
+  final public ForStatement CFL_STMT_FOR(Chunk c) throws ParseException {ForStatement alloc = new ForStatement();
     Token t0 = null, t1 = null; Expression obj0; Block obj1;
     t0 = jj_consume_token(FOR);
 tag ( alloc, t0 );
-    /* FOR IDENTIFIER */
+    /* FOR */
         t0 = jj_consume_token(IDENTIFIER);
 alloc.local = t0.image;
     jj_consume_token(IN);
-    switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-    case IDENTIFIER:{
-      /* IN [IDENTIFIER|EXPR] */
-                  t1 = jj_consume_token(IDENTIFIER);
-alloc.startLocal = t1.image;
-      break;
-      }
-    case INTEGER_LITERAL:
-    case STRING_LITERAL:
-    case REAL_LITERAL:
-    case FUNCTION:
-    case CALLVAR:
-    case NOT:
-    case TRUE:
-    case FALSE:
-    case 81:
-    case 83:
-    case 84:
-    case 85:{
-      obj0 = EXPR(c);
+    obj0 = EXPR(c);
 alloc.startExpr = obj0;
-      break;
-      }
-    default:
-      jj_la1[29] = jj_gen;
-      jj_consume_token(-1);
-      throw new ParseException();
-    }
     jj_consume_token(TO);
-    switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-    case IDENTIFIER:{
-      /* TO [IDENTIFIER|EXPR] */
-                  t1 = jj_consume_token(IDENTIFIER);
-alloc.endLocal = t1.image;
-      break;
-      }
-    case INTEGER_LITERAL:
-    case STRING_LITERAL:
-    case REAL_LITERAL:
-    case FUNCTION:
-    case CALLVAR:
-    case NOT:
-    case TRUE:
-    case FALSE:
-    case 81:
-    case 83:
-    case 84:
-    case 85:{
-      obj0 = EXPR(c);
+    obj0 = EXPR(c);
 alloc.endExpr = obj0;
-      break;
-      }
-    default:
-      jj_la1[30] = jj_gen;
-      jj_consume_token(-1);
-      throw new ParseException();
-    }
     jj_consume_token(BY);
-    switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-    case IDENTIFIER:{
-      /* BY [IDENTIFIER|EXPR] */
-                  t1 = jj_consume_token(IDENTIFIER);
-alloc.byLocal = t1.image;
-      break;
-      }
-    case INTEGER_LITERAL:
-    case STRING_LITERAL:
-    case REAL_LITERAL:
-    case FUNCTION:
-    case CALLVAR:
-    case NOT:
-    case TRUE:
-    case FALSE:
-    case 81:
-    case 83:
-    case 84:
-    case 85:{
-      obj0 = EXPR(c);
+    obj0 = EXPR(c);
 alloc.byExpr = obj0;
-      break;
-      }
-    default:
-      jj_la1[31] = jj_gen;
-      jj_consume_token(-1);
-      throw new ParseException();
-    }
     jj_consume_token(DO);
     obj1 = BLOCK(c);
 alloc.thenBlock = obj1;
@@ -983,22 +1058,13 @@ alloc.thenBlock = obj1;
     throw new Error("Missing return statement in function");
   }
 
-/** TRY shall now read as follows:
-    
-    <TRY>	BLOCK
-    ( <CATCH>	TYPENAME	IDENTIFIER	<DO> BLOCK )+
-    <ENDTRY>
-
-    so that the expansion generates 1 or more CATCH block(s) of the typename specified. :-) 
-*/
-  static final public 
-TryCatchStatement CFL_STMT_TRY(Chunk c) throws ParseException {TryCatchStatement alloc = new TryCatchStatement(); TryCatchStatement.CatchBlock alloc1 = null;
+  final public TryCatchStatement CFL_STMT_TRY(Chunk c) throws ParseException {TryCatchStatement alloc = new TryCatchStatement(); TryCatchStatement.CatchBlock alloc1 = null;
     Token t0 = null, t1 = null; Block obj0 = null, obj2 = null; TypeDecl obj1;
     t0 = jj_consume_token(TRY);
 tag ( alloc, t0 );
     obj0 = BLOCK(c);
 alloc.tryBlock = obj0;
-    label_12:
+    label_14:
     while (true) {
       /* at least one, match: */
               t0 = jj_consume_token(CATCH);
@@ -1015,8 +1081,8 @@ alloc1.block = obj2; if ( alloc.catchBlocks == null) alloc.catchBlocks = new Lin
         break;
         }
       default:
-        jj_la1[32] = jj_gen;
-        break label_12;
+        jj_la1[34] = jj_gen;
+        break label_14;
       }
     }
     jj_consume_token(ENDTRY);
@@ -1024,7 +1090,7 @@ alloc1.block = obj2; if ( alloc.catchBlocks == null) alloc.catchBlocks = new Lin
     throw new Error("Missing return statement in function");
   }
 
-  static final public ExitWhenStatement CFL_STMT_EXITWHEN(Chunk c) throws ParseException {ExitWhenStatement alloc = new ExitWhenStatement();
+  final public ExitWhenStatement CFL_STMT_EXITWHEN(Chunk c) throws ParseException {ExitWhenStatement alloc = new ExitWhenStatement();
     Token t0 = null;  Expression obj0 = null;
     t0 = jj_consume_token(EXITWHEN);
 tag ( alloc, t0 );
@@ -1033,7 +1099,7 @@ alloc.condExitWhenExpr = obj0; {if ("" != null) return alloc;}
     throw new Error("Missing return statement in function");
   }
 
-  static final public RaiseStatement CFL_STMT_RAISE(Chunk c) throws ParseException {RaiseStatement alloc = new RaiseStatement();
+  final public RaiseStatement CFL_STMT_RAISE(Chunk c) throws ParseException {RaiseStatement alloc = new RaiseStatement();
     Token t0 = null;  Expression obj0 = null;
     t0 = jj_consume_token(RAISE);
 tag ( alloc, t0 );
@@ -1042,7 +1108,7 @@ alloc.raiseValue = obj0; {if ("" != null) return alloc;}
     throw new Error("Missing return statement in function");
   }
 
-  static final public YieldStatement CFL_STMT_YIELD(Chunk c) throws ParseException {YieldStatement alloc = new YieldStatement();
+  final public YieldStatement CFL_STMT_YIELD(Chunk c) throws ParseException {YieldStatement alloc = new YieldStatement();
     Token t0 = null; Expression obj0 = null;
     t0 = jj_consume_token(YIELD);
 tag ( alloc, t0 );
@@ -1056,23 +1122,25 @@ tag ( alloc, t0 );
     case TRUE:
     case FALSE:
     case IDENTIFIER:
-    case 81:
-    case 83:
     case 84:
-    case 85:{
+    case 87:
+    case 88:
+    case 89:
+    case 90:
+    case 91:{
       obj0 = EXPR(c);
 alloc.yieldExpression = obj0;
       break;
       }
     default:
-      jj_la1[33] = jj_gen;
+      jj_la1[35] = jj_gen;
       ;
     }
 {if ("" != null) return alloc;}
     throw new Error("Missing return statement in function");
   }
 
-  static final public ReturnStatement CFL_STMT_RETURN(Chunk c) throws ParseException {ReturnStatement alloc = new ReturnStatement();
+  final public ReturnStatement CFL_STMT_RETURN(Chunk c) throws ParseException {ReturnStatement alloc = new ReturnStatement();
     Token t0 = null;  Expression obj0 = null;
     t0 = jj_consume_token(RETURN);
 tag ( alloc, t0 );
@@ -1086,16 +1154,18 @@ tag ( alloc, t0 );
     case TRUE:
     case FALSE:
     case IDENTIFIER:
-    case 81:
-    case 83:
     case 84:
-    case 85:{
+    case 87:
+    case 88:
+    case 89:
+    case 90:
+    case 91:{
       obj0 = EXPR(c);
 alloc.returnExpression = obj0;
       break;
       }
     default:
-      jj_la1[34] = jj_gen;
+      jj_la1[36] = jj_gen;
       ;
     }
 {if ("" != null) return alloc;}
@@ -1107,13 +1177,13 @@ alloc.returnExpression = obj0;
  ***********************/
 
 /* FN_STMT_CALL: invoke a function, ignore value (tailcall, discard return) */
-  static final public FunctionCallStatement FN_STMT_CALL(Chunk c) throws ParseException {FunctionCallStatement alloc = new FunctionCallStatement();
+  final public FunctionCallStatement FN_STMT_CALL(Chunk c) throws ParseException {FunctionCallStatement alloc = new FunctionCallStatement();
     Token t0 = null; Expression obj0 = null;
     t0 = jj_consume_token(CALL);
 tag ( alloc, t0 );
     t0 = jj_consume_token(IDENTIFIER);
 alloc.nameOfFunction = t0.image;
-    jj_consume_token(81);
+    jj_consume_token(84);
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case INTEGER_LITERAL:
     case STRING_LITERAL:
@@ -1124,81 +1194,28 @@ alloc.nameOfFunction = t0.image;
     case TRUE:
     case FALSE:
     case IDENTIFIER:
-    case 81:
-    case 83:
     case 84:
-    case 85:{
+    case 87:
+    case 88:
+    case 89:
+    case 90:
+    case 91:{
       /* zero or one parameter expressions...: */
                   obj0 = EXPR(c);
 if ( alloc.params == null ) alloc.params = new LinkedList();
                 alloc.params.add ( obj0 );
-      label_13:
+      label_15:
       while (true) {
         switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-        case 76:{
-          ;
-          break;
-          }
-        default:
-          jj_la1[35] = jj_gen;
-          break label_13;
-        }
-        jj_consume_token(76);
-        /** indicated by awaiting comma */
-                        obj0 = EXPR(c);
-if ( alloc.params == null ) alloc.params = new LinkedList();
-                    alloc.params.add ( obj0 );
-      }
-      break;
-      }
-    default:
-      jj_la1[36] = jj_gen;
-      ;
-    }
-    jj_consume_token(82);
-{if ("" != null) return alloc;}
-    throw new Error("Missing return statement in function");
-  }
-
-/* FN_STMT_CALLVAR: invoke a function by pointer reference in var specified (param or local);
-    ignore value (tailcall, discard return) */
-  static final public FunctionCallVarStatement FN_STMT_CALLVAR(Chunk c) throws ParseException {FunctionCallVarStatement alloc = new FunctionCallVarStatement();
-    Token t0 = null, t1 = null; Expression obj0 = null;
-    t0 = jj_consume_token(CALLVAR);
-tag ( alloc, t0 );
-    t1 = jj_consume_token(IDENTIFIER);
-alloc.nameOfLocalOrGlobalVar = t1.image;
-    jj_consume_token(81);
-    switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-    case INTEGER_LITERAL:
-    case STRING_LITERAL:
-    case REAL_LITERAL:
-    case FUNCTION:
-    case CALLVAR:
-    case NOT:
-    case TRUE:
-    case FALSE:
-    case IDENTIFIER:
-    case 81:
-    case 83:
-    case 84:
-    case 85:{
-      /* zero or one parameter expressions...: */
-                  obj0 = EXPR(c);
-if ( alloc.params == null ) alloc.params = new LinkedList();
-                alloc.params.add ( obj0 );
-      label_14:
-      while (true) {
-        switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-        case 76:{
+        case 79:{
           ;
           break;
           }
         default:
           jj_la1[37] = jj_gen;
-          break label_14;
+          break label_15;
         }
-        jj_consume_token(76);
+        jj_consume_token(79);
         /** indicated by awaiting comma */
                         obj0 = EXPR(c);
 if ( alloc.params == null ) alloc.params = new LinkedList();
@@ -1210,30 +1227,87 @@ if ( alloc.params == null ) alloc.params = new LinkedList();
       jj_la1[38] = jj_gen;
       ;
     }
-    jj_consume_token(82);
+    jj_consume_token(85);
+{if ("" != null) return alloc;}
+    throw new Error("Missing return statement in function");
+  }
+
+/* FN_STMT_CALLVAR: invoke a function by pointer reference in var specified (param or local);
+    ignore value (tailcall, discard return) */
+  final public FunctionCallVarStatement FN_STMT_CALLVAR(Chunk c) throws ParseException {FunctionCallVarStatement alloc = new FunctionCallVarStatement();
+    Token t0 = null, t1 = null; Expression obj0 = null;
+    t0 = jj_consume_token(CALLVAR);
+tag ( alloc, t0 );
+    t1 = jj_consume_token(IDENTIFIER);
+alloc.nameOfLocalOrGlobalVar = t1.image;
+    jj_consume_token(84);
+    switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
+    case INTEGER_LITERAL:
+    case STRING_LITERAL:
+    case REAL_LITERAL:
+    case FUNCTION:
+    case CALLVAR:
+    case NOT:
+    case TRUE:
+    case FALSE:
+    case IDENTIFIER:
+    case 84:
+    case 87:
+    case 88:
+    case 89:
+    case 90:
+    case 91:{
+      /* zero or one parameter expressions...: */
+                  obj0 = EXPR(c);
+if ( alloc.params == null ) alloc.params = new LinkedList();
+                alloc.params.add ( obj0 );
+      label_16:
+      while (true) {
+        switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
+        case 79:{
+          ;
+          break;
+          }
+        default:
+          jj_la1[39] = jj_gen;
+          break label_16;
+        }
+        jj_consume_token(79);
+        /** indicated by awaiting comma */
+                        obj0 = EXPR(c);
+if ( alloc.params == null ) alloc.params = new LinkedList();
+                    alloc.params.add ( obj0 );
+      }
+      break;
+      }
+    default:
+      jj_la1[40] = jj_gen;
+      ;
+    }
+    jj_consume_token(85);
 {if ("" != null) return alloc;}
     throw new Error("Missing return statement in function");
   }
 
 /** FN_STMT_SET: set variable (local only) */
-  static final public ExecutionFunctionStatement FN_STMT_SET(Chunk c) throws ParseException {ExecutionFunctionStatement alloc = null;
+  final public ExecutionFunctionStatement FN_STMT_SET(Chunk c) throws ParseException {ExecutionFunctionStatement alloc = null;
     Token t0 = null, t1 = null; Expression obj0 = null;
     t0 = jj_consume_token(SET);
     t1 = jj_consume_token(IDENTIFIER);
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-    case 78:{
-      jj_consume_token(78);
+    case 81:{
+      jj_consume_token(81);
 alloc = new SetArrayVariableStatement(); tag ( alloc, t0 ); ( (SetArrayVariableStatement) alloc).nameOfLocalVar = t1.image;
       obj0 = EXPR(c);
 ( (SetArrayVariableStatement) alloc).indexOfArrayExpr = obj0;
-      jj_consume_token(79);
+      jj_consume_token(82);
       break;
       }
     default:
-      jj_la1[39] = jj_gen;
+      jj_la1[41] = jj_gen;
 alloc = new SetVariableStatement(); tag ( alloc, t0 ); ( (SetVariableStatement) alloc ).nameOfLocalVar = t1.image;
     }
-    jj_consume_token(80);
+    jj_consume_token(83);
     obj0 = EXPR(c);
 if ( alloc instanceof SetArrayVariableStatement )
             ( (SetArrayVariableStatement) alloc ).rhs = obj0;
@@ -1263,31 +1337,61 @@ if ( alloc instanceof SetArrayVariableStatement )
 	]?							-> ret0 = BinaryExpr ( a, operand, b );
     } -> { return ret0; }
 **/
-  static final public Expression EXPR(Chunk c) throws ParseException {Expression ret = null,
+  final public Expression EXPR(Chunk c) throws ParseException {Expression ret = null,
                 obj0 = null, obj1 = null, obj2 = null, obj3 = null;
     Token t0 = null, t1 = null, t2 = null;
     UnaryExpression.UnaryOperation uo = null;
     BinaryExpression.BinaryOperation bo = null;
     LinkedList l0 = null;
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-    case NOT:
-    case 83:
-    case 84:
-    case 85:{
+    case 87:
+    case 88:{
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-      case 83:{
+      case 87:{
+        /* one of (NUM_INCREMENT_PRE | NUM_DECREMENT_PRE) ... */
+                        t0 = jj_consume_token(87);
+uo = UnaryExpression.UnaryOperation.NUM_INCREMENT_PRE;
+        break;
+        }
+      case 88:{
+        t0 = jj_consume_token(88);
+uo = UnaryExpression.UnaryOperation.NUM_DECREMENT_PRE;
+        break;
+        }
+      default:
+        jj_la1[42] = jj_gen;
+        jj_consume_token(-1);
+        throw new ParseException();
+      }
+ret = new UnaryExpression();
+                tag ( ret, t0 );
+                ((UnaryExpression)ret).operand = uo;
+      /* then a variable (local) identifier... */
+                  t1 = jj_consume_token(IDENTIFIER);
+obj0 = new VariableRefExpression();
+                tag ( obj0, t1 );
+                ((VariableRefExpression)obj0).nameOfLocalOrGlobalVar = t1.image;
+                ((UnaryExpression)ret).rhs = obj0;
+      break;
+      }
+    case NOT:
+    case 89:
+    case 90:
+    case 91:{
+      switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
+      case 89:{
         /** a UNARY_OPERAND token */
-                        t0 = jj_consume_token(83);
+                        t0 = jj_consume_token(89);
 uo = UnaryExpression.UnaryOperation.BIT_NEGATE;
         break;
         }
-      case 84:{
-        t0 = jj_consume_token(84);
+      case 90:{
+        t0 = jj_consume_token(90);
 uo = UnaryExpression.UnaryOperation.NUM_NEGATE;
         break;
         }
-      case 85:{
-        t0 = jj_consume_token(85);
+      case 91:{
+        t0 = jj_consume_token(91);
 uo = UnaryExpression.UnaryOperation.NUM_ABSVAL;
         break;
         }
@@ -1297,7 +1401,7 @@ uo = UnaryExpression.UnaryOperation.BOOL_NOT;
         break;
         }
       default:
-        jj_la1[40] = jj_gen;
+        jj_la1[43] = jj_gen;
         jj_consume_token(-1);
         throw new ParseException();
       }
@@ -1305,13 +1409,13 @@ ret = new UnaryExpression ();
                 tag ( ret, t0 );
                 ((UnaryExpression)ret).operand = uo;
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-      case 81:{
+      case 84:{
         /** expansion UNARY_OPERAND PARENTHESIS */
-                            t1 = jj_consume_token(81);
+                            t1 = jj_consume_token(84);
 obj0 = new ParenExpression (); tag ( obj0, t1 );
         obj1 = EXPR(c);
 ((ParenExpression)obj0).expressionInParenth = obj1;
-        jj_consume_token(82);
+        jj_consume_token(85);
 ((UnaryExpression)ret).rhs = obj0;
         break;
         }
@@ -1321,7 +1425,7 @@ obj0 = new ParenExpression (); tag ( obj0, t1 );
 obj0 = new FunctionCallVarExpression (); tag ( obj0, t1 );
         t2 = jj_consume_token(IDENTIFIER);
 ((FunctionCallVarExpression)obj0).nameOfLocalOrGlobalVar = t2.image;
-        jj_consume_token(81);
+        jj_consume_token(84);
 l0 = new LinkedList ();
         switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
         case INTEGER_LITERAL:
@@ -1333,34 +1437,36 @@ l0 = new LinkedList ();
         case TRUE:
         case FALSE:
         case IDENTIFIER:
-        case 81:
-        case 83:
         case 84:
-        case 85:{
+        case 87:
+        case 88:
+        case 89:
+        case 90:
+        case 91:{
           obj1 = EXPR(c);
 l0.add ( obj1 );
-          label_15:
+          label_17:
           while (true) {
             switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-            case 76:{
+            case 79:{
               ;
               break;
               }
             default:
-              jj_la1[41] = jj_gen;
-              break label_15;
+              jj_la1[44] = jj_gen;
+              break label_17;
             }
-            jj_consume_token(76);
+            jj_consume_token(79);
             obj1 = EXPR(c);
 l0.add ( obj1 );
           }
           break;
           }
         default:
-          jj_la1[42] = jj_gen;
+          jj_la1[45] = jj_gen;
           ;
         }
-        jj_consume_token(82);
+        jj_consume_token(85);
 if ( !l0.isEmpty() ) ((FunctionCallVarExpression)obj0).params = l0; ((UnaryExpression)ret).rhs = obj0;
         break;
         }
@@ -1368,11 +1474,11 @@ if ( !l0.isEmpty() ) ((FunctionCallVarExpression)obj0).params = l0; ((UnaryExpre
         /** expansion UNARY_OPERAND ( VAR_REF | CALL_FUNC ) */
                             t1 = jj_consume_token(IDENTIFIER);
         switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-        case 78:
-        case 81:{
+        case 81:
+        case 84:{
           switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-          case 81:{
-            jj_consume_token(81);
+          case 84:{
+            jj_consume_token(84);
 l0 = new LinkedList();
             switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
             case INTEGER_LITERAL:
@@ -1384,44 +1490,46 @@ l0 = new LinkedList();
             case TRUE:
             case FALSE:
             case IDENTIFIER:
-            case 81:
-            case 83:
             case 84:
-            case 85:{
+            case 87:
+            case 88:
+            case 89:
+            case 90:
+            case 91:{
               obj1 = EXPR(c);
 l0.add ( obj1 );
-              label_16:
+              label_18:
               while (true) {
                 switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-                case 76:{
+                case 79:{
                   ;
                   break;
                   }
                 default:
-                  jj_la1[43] = jj_gen;
-                  break label_16;
+                  jj_la1[46] = jj_gen;
+                  break label_18;
                 }
-                jj_consume_token(76);
+                jj_consume_token(79);
                 obj1 = EXPR(c);
 l0.add ( obj1 );
               }
               break;
               }
             default:
-              jj_la1[44] = jj_gen;
+              jj_la1[47] = jj_gen;
               ;
             }
-            jj_consume_token(82);
+            jj_consume_token(85);
 obj0 = new FunctionCallExpression ();
                                     tag ( obj0, t1 );
                                     ((FunctionCallExpression)obj0).nameOfFunction = t1.image;
                                     if ( !l0.isEmpty() ) ((FunctionCallExpression)obj0).params = l0;
             break;
             }
-          case 78:{
-            jj_consume_token(78);
+          case 81:{
+            jj_consume_token(81);
             obj1 = EXPR(c);
-            jj_consume_token(79);
+            jj_consume_token(82);
 obj0 = new VariableArrayRefExpression ();
                                     tag ( obj0, t1 );
                                     ((VariableArrayRefExpression)obj0).nameOfLocalOrGlobalVar = t1.image;
@@ -1429,14 +1537,14 @@ obj0 = new VariableArrayRefExpression ();
             break;
             }
           default:
-            jj_la1[45] = jj_gen;
+            jj_la1[48] = jj_gen;
             jj_consume_token(-1);
             throw new ParseException();
           }
           break;
           }
         default:
-          jj_la1[46] = jj_gen;
+          jj_la1[49] = jj_gen;
           ;
         }
 /** case for UNARY_OPERAND VAR_REF */
@@ -1450,20 +1558,20 @@ obj0 = new VariableArrayRefExpression ();
         break;
         }
       default:
-        jj_la1[47] = jj_gen;
+        jj_la1[50] = jj_gen;
         jj_consume_token(-1);
         throw new ParseException();
       }
 {if ("" != null) return ret;}
       break;
       }
-    case 81:{
+    case 84:{
       /** expansion PARENTHESIS */
-                  t0 = jj_consume_token(81);
+                  t0 = jj_consume_token(84);
 ret = new ParenExpression (); tag ( ret, t0 );
       obj0 = EXPR(c);
 ((ParenExpression)ret).expressionInParenth = obj0;
-      jj_consume_token(82);
+      jj_consume_token(85);
       break;
       }
     case CALLVAR:{
@@ -1472,7 +1580,7 @@ ret = new ParenExpression (); tag ( ret, t0 );
 ret = new FunctionCallVarExpression (); tag ( ret, t0 );
       t1 = jj_consume_token(IDENTIFIER);
 ((FunctionCallVarExpression)ret).nameOfLocalOrGlobalVar = t1.image;
-      jj_consume_token(81);
+      jj_consume_token(84);
 l0 = new LinkedList();
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
       case INTEGER_LITERAL:
@@ -1484,46 +1592,58 @@ l0 = new LinkedList();
       case TRUE:
       case FALSE:
       case IDENTIFIER:
-      case 81:
-      case 83:
       case 84:
-      case 85:{
+      case 87:
+      case 88:
+      case 89:
+      case 90:
+      case 91:{
         obj0 = EXPR(c);
 l0.add ( obj0 );
-        label_17:
+        label_19:
         while (true) {
           switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-          case 76:{
+          case 79:{
             ;
             break;
             }
           default:
-            jj_la1[48] = jj_gen;
-            break label_17;
+            jj_la1[51] = jj_gen;
+            break label_19;
           }
-          jj_consume_token(76);
+          jj_consume_token(79);
           obj0 = EXPR(c);
 l0.add ( obj0 );
         }
         break;
         }
       default:
-        jj_la1[49] = jj_gen;
+        jj_la1[52] = jj_gen;
         ;
       }
-      jj_consume_token(82);
+      jj_consume_token(85);
 if ( !l0.isEmpty() ) ((FunctionCallVarExpression)ret).params = l0;
       break;
       }
+    case FUNCTION:{
+      /** expansion FUNCTION_REF: */
+                  t0 = jj_consume_token(FUNCTION);
+ret = new FunctionRefExpression (); tag ( ret, t0 );
+      t1 = jj_consume_token(IDENTIFIER);
+((FunctionRefExpression)ret).nameOfFunction = t1.image;
+      break;
+      }
     case IDENTIFIER:{
-      /** expansion VAR_REF | CALL_FUNC */
+      /** expansion VAR_REF | CALL_FUNC | VAR_REF_ARR */
                   t0 = jj_consume_token(IDENTIFIER);
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-      case 78:
-      case 81:{
+      case 81:
+      case 84:
+      case 87:
+      case 88:{
         switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-        case 81:{
-          jj_consume_token(81);
+        case 84:{
+          jj_consume_token(84);
 l0 = new LinkedList();
           switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
           case INTEGER_LITERAL:
@@ -1535,60 +1655,90 @@ l0 = new LinkedList();
           case TRUE:
           case FALSE:
           case IDENTIFIER:
-          case 81:
-          case 83:
           case 84:
-          case 85:{
+          case 87:
+          case 88:
+          case 89:
+          case 90:
+          case 91:{
             /** either 0 or 1 arguments...: */
                                         obj0 = EXPR(c);
 l0.add ( obj0 );
-            label_18:
+            label_20:
             while (true) {
               switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-              case 76:{
+              case 79:{
                 ;
                 break;
                 }
               default:
-                jj_la1[50] = jj_gen;
-                break label_18;
+                jj_la1[53] = jj_gen;
+                break label_20;
               }
-              jj_consume_token(76);
+              jj_consume_token(79);
               obj0 = EXPR(c);
 l0.add ( obj0 );
             }
             break;
             }
           default:
-            jj_la1[51] = jj_gen;
+            jj_la1[54] = jj_gen;
             ;
           }
-          jj_consume_token(82);
+          jj_consume_token(85);
 ret = new FunctionCallExpression ();
                         tag ( ret, t0 );
                         ((FunctionCallExpression)ret).nameOfFunction = t0.image;
                         if ( !l0.isEmpty() ) ((FunctionCallExpression)ret).params = l0;
           break;
           }
-        case 78:{
-          jj_consume_token(78);
+        case 81:{
+          jj_consume_token(81);
           obj0 = EXPR(c);
-          jj_consume_token(79);
+          jj_consume_token(82);
 ret = new VariableArrayRefExpression ();
                         tag ( ret, t0 );
                         ((VariableArrayRefExpression)ret).nameOfLocalOrGlobalVar = t0.image;
                         ((VariableArrayRefExpression)ret).indexOfArrayExpr = obj0;
           break;
           }
+        case 87:
+        case 88:{
+          switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
+          case 87:{
+            /* one of (NUM_INCREMENT_POST | NUM_DECREMENT_POST): */
+                                    t1 = jj_consume_token(87);
+uo = UnaryExpression.UnaryOperation.NUM_INCREMENT_POST;
+            break;
+            }
+          case 88:{
+            t1 = jj_consume_token(88);
+uo = UnaryExpression.UnaryOperation.NUM_DECREMENT_POST;
+            break;
+            }
+          default:
+            jj_la1[55] = jj_gen;
+            jj_consume_token(-1);
+            throw new ParseException();
+          }
+ret = new UnaryExpression();
+                        tag ( ret, t1 );
+                        ((UnaryExpression)ret).operand = uo;
+                        obj0 = new VariableRefExpression();
+                        tag ( obj0, t0 );
+                        ((VariableRefExpression)obj0).nameOfLocalOrGlobalVar = t0.image;
+                        ((UnaryExpression)ret).rhs = obj0;
+          break;
+          }
         default:
-          jj_la1[52] = jj_gen;
+          jj_la1[56] = jj_gen;
           jj_consume_token(-1);
           throw new ParseException();
         }
         break;
         }
       default:
-        jj_la1[53] = jj_gen;
+        jj_la1[57] = jj_gen;
         ;
       }
 /** case for VAR_REF */
@@ -1597,13 +1747,6 @@ ret = new VariableArrayRefExpression ();
                     tag ( ret, t0 );
                     ((VariableRefExpression)ret).nameOfLocalOrGlobalVar = t0.image;
                 }
-      break;
-      }
-    case FUNCTION:{
-      t0 = jj_consume_token(FUNCTION);
-ret = new FunctionRefExpression (); tag ( ret, t0 );
-      t1 = jj_consume_token(IDENTIFIER);
-((FunctionRefExpression)ret).nameOfFunction = t1.image;
       break;
       }
     case TRUE:
@@ -1620,7 +1763,7 @@ ret = LiteralValue.VALUE_FALSE;
         break;
         }
       default:
-        jj_la1[54] = jj_gen;
+        jj_la1[58] = jj_gen;
         jj_consume_token(-1);
         throw new ParseException();
       }
@@ -1643,22 +1786,16 @@ ret = new LiteralValue ( TypeDecl.TYPE_STRING,  _tostr(t0.image) ); tag ( ret, t
       break;
       }
     default:
-      jj_la1[55] = jj_gen;
+      jj_la1[59] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
-    label_19:
+    label_21:
     while (true) {
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
       case AND:
       case OR:
-      case 77:
-      case 83:
-      case 84:
-      case 85:
-      case 86:
-      case 87:
-      case 88:
+      case 80:
       case 89:
       case 90:
       case 91:
@@ -1668,38 +1805,44 @@ ret = new LiteralValue ( TypeDecl.TYPE_STRING,  _tostr(t0.image) ); tag ( ret, t
       case 95:
       case 96:
       case 97:
-      case 98:{
+      case 98:
+      case 99:
+      case 100:
+      case 101:
+      case 102:
+      case 103:
+      case 104:{
         ;
         break;
         }
       default:
-        jj_la1[56] = jj_gen;
-        break label_19;
+        jj_la1[60] = jj_gen;
+        break label_21;
       }
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
-      case 86:{
+      case 92:{
         /** expand the BINARY_OPERAND */
-                        t0 = jj_consume_token(86);
+                        t0 = jj_consume_token(92);
 bo = BinaryExpression.BinaryOperation.BIT_AND;
         break;
         }
-      case 87:{
-        t0 = jj_consume_token(87);
+      case 93:{
+        t0 = jj_consume_token(93);
 bo = BinaryExpression.BinaryOperation.BIT_OR;
-        break;
-        }
-      case 83:{
-        t0 = jj_consume_token(83);
-bo = BinaryExpression.BinaryOperation.BIT_XOR;
-        break;
-        }
-      case 88:{
-        t0 = jj_consume_token(88);
-bo = BinaryExpression.BinaryOperation.BIT_SHL;
         break;
         }
       case 89:{
         t0 = jj_consume_token(89);
+bo = BinaryExpression.BinaryOperation.BIT_XOR;
+        break;
+        }
+      case 94:{
+        t0 = jj_consume_token(94);
+bo = BinaryExpression.BinaryOperation.BIT_SHL;
+        break;
+        }
+      case 95:{
+        t0 = jj_consume_token(95);
 bo = BinaryExpression.BinaryOperation.BIT_SHR;
         break;
         }
@@ -1713,68 +1856,68 @@ bo = BinaryExpression.BinaryOperation.BOOL_AND;
 bo = BinaryExpression.BinaryOperation.BOOL_OR;
         break;
         }
-      case 90:{
-        t0 = jj_consume_token(90);
-bo = BinaryExpression.BinaryOperation.VAL_EQ;
-        break;
-        }
-      case 91:{
-        t0 = jj_consume_token(91);
-bo = BinaryExpression.BinaryOperation.VAL_NEQ;
-        break;
-        }
-      case 92:{
-        t0 = jj_consume_token(92);
-bo = BinaryExpression.BinaryOperation.VAL_GTEQ;
-        break;
-        }
-      case 93:{
-        t0 = jj_consume_token(93);
-bo = BinaryExpression.BinaryOperation.VAL_LTEQ;
-        break;
-        }
-      case 94:{
-        t0 = jj_consume_token(94);
-bo = BinaryExpression.BinaryOperation.VAL_GT;
-        break;
-        }
-      case 95:{
-        t0 = jj_consume_token(95);
-bo = BinaryExpression.BinaryOperation.VAL_LT;
-        break;
-        }
-      case 85:{
-        t0 = jj_consume_token(85);
-bo = BinaryExpression.BinaryOperation.NUM_ADD;
-        break;
-        }
-      case 84:{
-        t0 = jj_consume_token(84);
-bo = BinaryExpression.BinaryOperation.NUM_SUB;
-        break;
-        }
       case 96:{
         t0 = jj_consume_token(96);
-bo = BinaryExpression.BinaryOperation.NUM_DIV;
-        break;
-        }
-      case 77:{
-        t0 = jj_consume_token(77);
-bo = BinaryExpression.BinaryOperation.NUM_MUL;
+bo = BinaryExpression.BinaryOperation.VAL_EQ;
         break;
         }
       case 97:{
         t0 = jj_consume_token(97);
-bo = BinaryExpression.BinaryOperation.NUM_MOD;
+bo = BinaryExpression.BinaryOperation.VAL_NEQ;
         break;
         }
       case 98:{
         t0 = jj_consume_token(98);
+bo = BinaryExpression.BinaryOperation.VAL_GTEQ;
+        break;
+        }
+      case 99:{
+        t0 = jj_consume_token(99);
+bo = BinaryExpression.BinaryOperation.VAL_LTEQ;
+        break;
+        }
+      case 100:{
+        t0 = jj_consume_token(100);
+bo = BinaryExpression.BinaryOperation.VAL_GT;
+        break;
+        }
+      case 101:{
+        t0 = jj_consume_token(101);
+bo = BinaryExpression.BinaryOperation.VAL_LT;
+        break;
+        }
+      case 91:{
+        t0 = jj_consume_token(91);
+bo = BinaryExpression.BinaryOperation.NUM_ADD;
+        break;
+        }
+      case 90:{
+        t0 = jj_consume_token(90);
+bo = BinaryExpression.BinaryOperation.NUM_SUB;
+        break;
+        }
+      case 102:{
+        t0 = jj_consume_token(102);
+bo = BinaryExpression.BinaryOperation.NUM_DIV;
+        break;
+        }
+      case 80:{
+        t0 = jj_consume_token(80);
+bo = BinaryExpression.BinaryOperation.NUM_MUL;
+        break;
+        }
+      case 103:{
+        t0 = jj_consume_token(103);
+bo = BinaryExpression.BinaryOperation.NUM_MOD;
+        break;
+        }
+      case 104:{
+        t0 = jj_consume_token(104);
 bo = BinaryExpression.BinaryOperation.NUM_POW;
         break;
         }
       default:
-        jj_la1[57] = jj_gen;
+        jj_la1[61] = jj_gen;
         jj_consume_token(-1);
         throw new ParseException();
       }
@@ -1797,7 +1940,7 @@ bo = BinaryExpression.BinaryOperation.NUM_POW;
     TYPE: a well defined type name (one of six)
     IDENTIFIER: a typename defined by the user which maps to one of the six base type(s)
 */
-  static final public TypeDecl TYPENAME(Chunk c) throws ParseException {Token t0 = null;
+  final public TypeDecl TYPENAME(Chunk c) throws ParseException {Token t0 = null;
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case INTEGER:{
       jj_consume_token(INTEGER);
@@ -1838,24 +1981,23 @@ TypeDecl decl = c.findTypeDecl ( t0.image );
       break;
       }
     default:
-      jj_la1[58] = jj_gen;
+      jj_la1[62] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
     throw new Error("Missing return statement in function");
   }
 
-  static private boolean jj_initialized_once = false;
   /** Generated Token Manager. */
-  static public LogicScriptParserTokenManager token_source;
-  static SimpleCharStream jj_input_stream;
+  public LogicScriptParserTokenManager token_source;
+  SimpleCharStream jj_input_stream;
   /** Current token. */
-  static public Token token;
+  public Token token;
   /** Next token. */
-  static public Token jj_nt;
-  static private int jj_ntk;
-  static private int jj_gen;
-  static final private int[] jj_la1 = new int[59];
+  public Token jj_nt;
+  private int jj_ntk;
+  private int jj_gen;
+  final private int[] jj_la1 = new int[63];
   static private int[] jj_la1_0;
   static private int[] jj_la1_1;
   static private int[] jj_la1_2;
@@ -1867,16 +2009,16 @@ TypeDecl decl = c.findTypeDecl ( t0.image );
       jj_la1_init_3();
    }
    private static void jj_la1_init_0() {
-      jj_la1_0 = new int[] {0x940000,0x940000,0x400000,0x0,0x400000,0x0,0x400000,0x0,0x0,0x0,0xf8000000,0xf8000000,0x0,0x0,0x0,0x0,0x0,0x0,0xf8000000,0xf8000000,0xf8000000,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x31000,0x31000,0x31000,0x0,0x31000,0x31000,0x0,0x31000,0x0,0x31000,0x0,0x0,0x0,0x31000,0x0,0x31000,0x0,0x0,0x0,0x0,0x31000,0x0,0x31000,0x0,0x0,0x0,0x31000,0x0,0x0,0xf8000000,};
+      jj_la1_0 = new int[] {0x1280000,0x1280000,0x800000,0x0,0x800000,0x0,0x800000,0x0,0x0,0x0,0xf0000000,0xf0000000,0x0,0x0,0x0,0x0,0x0,0x0,0xf0000000,0xf0000000,0xf0000000,0x0,0x0,0x0,0x0,0x0,0x1000,0x1000,0x0,0x61000,0x61000,0x0,0x0,0x0,0x0,0x61000,0x61000,0x0,0x61000,0x0,0x61000,0x0,0x0,0x0,0x0,0x61000,0x0,0x61000,0x0,0x0,0x0,0x0,0x61000,0x0,0x61000,0x0,0x0,0x0,0x0,0x61000,0x0,0x0,0xf0000000,};
    }
    private static void jj_la1_init_1() {
-      jj_la1_1 = new int[] {0x1220,0x1220,0x1020,0x0,0x1020,0x0,0x1020,0x0,0x0,0x0,0x9,0x9,0x1220,0x1,0x10,0x0,0x0,0x0,0x9,0x3,0x3,0x0,0x90684800,0x90684800,0x90684000,0x0,0x10000,0x10000,0x20000,0x20,0x20,0x20,0x20000000,0x20,0x20,0x0,0x20,0x0,0x20,0x0,0x0,0x0,0x20,0x0,0x20,0x0,0x0,0x0,0x0,0x20,0x0,0x20,0x0,0x0,0x0,0x20,0x0,0x0,0x1,};
+      jj_la1_1 = new int[] {0x2440,0x2440,0x2040,0x0,0x2040,0x0,0x2040,0x0,0x0,0x0,0x13,0x13,0x2440,0x2,0x20,0x0,0x0,0x0,0x13,0x7,0x7,0x0,0x20d09000,0x20d09000,0x20d08000,0x0,0x0,0x0,0x0,0x0,0x0,0x20000,0x20000,0x40000,0x40000000,0x40,0x40,0x0,0x40,0x0,0x40,0x0,0x0,0x0,0x0,0x40,0x0,0x40,0x0,0x0,0x0,0x0,0x40,0x0,0x40,0x0,0x0,0x0,0x0,0x40,0x0,0x0,0x3,};
    }
    private static void jj_la1_init_2() {
-      jj_la1_2 = new int[] {0x0,0x0,0x0,0xc00,0x0,0xc00,0x0,0x1000,0x2400,0x1000,0x400,0x400,0x0,0x400,0x0,0x10000,0x1000,0x10000,0x400,0x400,0x400,0x1000,0x1f,0x1f,0x3,0x1c,0x0,0x0,0x0,0x3a0788,0x3a0788,0x3a0788,0x0,0x3a0788,0x3a0788,0x1000,0x3a0788,0x1000,0x3a0788,0x4000,0x380080,0x1000,0x3a0788,0x1000,0x3a0788,0x24000,0x24000,0x20408,0x1000,0x3a0788,0x1000,0x3a0788,0x24000,0x24000,0x300,0x3a0788,0xfff82060,0xfff82060,0x400,};
+      jj_la1_2 = new int[] {0x0,0x0,0x0,0x6000,0x0,0x6000,0x0,0x8000,0x12000,0x8000,0x2000,0x2000,0x0,0x2000,0x0,0x80000,0x8000,0x80000,0x2000,0x2000,0x2000,0x8000,0x7f,0x7f,0x7,0x38,0x2000,0x2000,0x100000,0x1800,0x1800,0x0,0x0,0x0,0x0,0xf903c10,0xf903c10,0x8000,0xf903c10,0x8000,0xf903c10,0x20000,0x1800000,0xe000400,0x8000,0xf903c10,0x8000,0xf903c10,0x120000,0x120000,0x102010,0x8000,0xf903c10,0x8000,0xf903c10,0x1800000,0x1920000,0x1920000,0x1800,0xf903c10,0xfe010300,0xfe010300,0x2000,};
    }
    private static void jj_la1_init_3() {
-      jj_la1_3 = new int[] {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x7,0x7,0x0,};
+      jj_la1_3 = new int[] {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x1ff,0x1ff,0x0,};
    }
 
   /** Constructor with InputStream. */
@@ -1885,76 +2027,55 @@ TypeDecl decl = c.findTypeDecl ( t0.image );
   }
   /** Constructor with InputStream and supplied encoding */
   public LogicScriptParser(java.io.InputStream stream, String encoding) {
-    if (jj_initialized_once) {
-      System.out.println("ERROR: Second call to constructor of static parser.  ");
-      System.out.println("       You must either use ReInit() or set the JavaCC option STATIC to false");
-      System.out.println("       during parser generation.");
-      throw new Error();
-    }
-    jj_initialized_once = true;
     try { jj_input_stream = new SimpleCharStream(stream, encoding, 1, 1); } catch(java.io.UnsupportedEncodingException e) { throw new RuntimeException(e); }
     token_source = new LogicScriptParserTokenManager(jj_input_stream);
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 59; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 63; i++) jj_la1[i] = -1;
   }
 
   /** Reinitialise. */
-  static public void ReInit(java.io.InputStream stream) {
+  public void ReInit(java.io.InputStream stream) {
      ReInit(stream, null);
   }
   /** Reinitialise. */
-  static public void ReInit(java.io.InputStream stream, String encoding) {
+  public void ReInit(java.io.InputStream stream, String encoding) {
     try { jj_input_stream.ReInit(stream, encoding, 1, 1); } catch(java.io.UnsupportedEncodingException e) { throw new RuntimeException(e); }
     token_source.ReInit(jj_input_stream);
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 59; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 63; i++) jj_la1[i] = -1;
   }
 
   /** Constructor. */
   public LogicScriptParser(java.io.Reader stream) {
-    if (jj_initialized_once) {
-      System.out.println("ERROR: Second call to constructor of static parser. ");
-      System.out.println("       You must either use ReInit() or set the JavaCC option STATIC to false");
-      System.out.println("       during parser generation.");
-      throw new Error();
-    }
-    jj_initialized_once = true;
     jj_input_stream = new SimpleCharStream(stream, 1, 1);
     token_source = new LogicScriptParserTokenManager(jj_input_stream);
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 59; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 63; i++) jj_la1[i] = -1;
   }
 
   /** Reinitialise. */
-  static public void ReInit(java.io.Reader stream) {
+  public void ReInit(java.io.Reader stream) {
     jj_input_stream.ReInit(stream, 1, 1);
     token_source.ReInit(jj_input_stream);
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 59; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 63; i++) jj_la1[i] = -1;
   }
 
   /** Constructor with generated Token Manager. */
   public LogicScriptParser(LogicScriptParserTokenManager tm) {
-    if (jj_initialized_once) {
-      System.out.println("ERROR: Second call to constructor of static parser. ");
-      System.out.println("       You must either use ReInit() or set the JavaCC option STATIC to false");
-      System.out.println("       during parser generation.");
-      throw new Error();
-    }
-    jj_initialized_once = true;
     token_source = tm;
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 59; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 63; i++) jj_la1[i] = -1;
   }
 
   /** Reinitialise. */
@@ -1963,10 +2084,10 @@ TypeDecl decl = c.findTypeDecl ( t0.image );
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 59; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 63; i++) jj_la1[i] = -1;
   }
 
-  static private Token jj_consume_token(int kind) throws ParseException {
+  private Token jj_consume_token(int kind) throws ParseException {
     Token oldToken;
     if ((oldToken = token).next != null) token = token.next;
     else token = token.next = token_source.getNextToken();
@@ -1982,7 +2103,7 @@ TypeDecl decl = c.findTypeDecl ( t0.image );
 
 
 /** Get the next Token. */
-  static final public Token getNextToken() {
+  final public Token getNextToken() {
     if (token.next != null) token = token.next;
     else token = token.next = token_source.getNextToken();
     jj_ntk = -1;
@@ -1991,7 +2112,7 @@ TypeDecl decl = c.findTypeDecl ( t0.image );
   }
 
 /** Get the specific Token. */
-  static final public Token getToken(int index) {
+  final public Token getToken(int index) {
     Token t = token;
     for (int i = 0; i < index; i++) {
       if (t.next != null) t = t.next;
@@ -2000,26 +2121,26 @@ TypeDecl decl = c.findTypeDecl ( t0.image );
     return t;
   }
 
-  static private int jj_ntk_f() {
+  private int jj_ntk_f() {
     if ((jj_nt=token.next) == null)
       return (jj_ntk = (token.next=token_source.getNextToken()).kind);
     else
       return (jj_ntk = jj_nt.kind);
   }
 
-  static private java.util.List<int[]> jj_expentries = new java.util.ArrayList<int[]>();
-  static private int[] jj_expentry;
-  static private int jj_kind = -1;
+  private java.util.List<int[]> jj_expentries = new java.util.ArrayList<int[]>();
+  private int[] jj_expentry;
+  private int jj_kind = -1;
 
   /** Generate ParseException. */
-  static public ParseException generateParseException() {
+  public ParseException generateParseException() {
     jj_expentries.clear();
-    boolean[] la1tokens = new boolean[99];
+    boolean[] la1tokens = new boolean[105];
     if (jj_kind >= 0) {
       la1tokens[jj_kind] = true;
       jj_kind = -1;
     }
-    for (int i = 0; i < 59; i++) {
+    for (int i = 0; i < 63; i++) {
       if (jj_la1[i] == jj_gen) {
         for (int j = 0; j < 32; j++) {
           if ((jj_la1_0[i] & (1<<j)) != 0) {
@@ -2037,7 +2158,7 @@ TypeDecl decl = c.findTypeDecl ( t0.image );
         }
       }
     }
-    for (int i = 0; i < 99; i++) {
+    for (int i = 0; i < 105; i++) {
       if (la1tokens[i]) {
         jj_expentry = new int[1];
         jj_expentry[0] = i;
@@ -2052,11 +2173,11 @@ TypeDecl decl = c.findTypeDecl ( t0.image );
   }
 
   /** Enable tracing. */
-  static final public void enable_tracing() {
+  final public void enable_tracing() {
   }
 
   /** Disable tracing. */
-  static final public void disable_tracing() {
+  final public void disable_tracing() {
   }
 
 }
