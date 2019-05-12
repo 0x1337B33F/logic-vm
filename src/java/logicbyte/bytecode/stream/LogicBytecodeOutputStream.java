@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import logicbyte.bytecode.FunctionOpcodeList;
 import logicbyte.bytecode.LogicBytecodeFile;
 import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDecl;
+import logicbyte.bytecode.Opcode;
 
 /**
  *
@@ -86,6 +87,31 @@ public class LogicBytecodeOutputStream extends NeutralEncoderOutputStream {
 	writePackedInt(opcodes.size());
 	for (int i = 0, j = opcodes.size(); i < j; i++)
 	    writeOpcode(opcodes.get(i));
+    }
+
+    public void writeOpcode(Opcode opcodeObj) throws IOException {
+	destDataStreamRef.write(opcodeObj.getword());
+	if (opcodeObj.hasopts())
+	    destDataStreamRef.write(opcodeObj.getopts());
+	if (opcodeObj.args() > 0)
+	    for (int i = 0, j = opcodeObj.args(); i < j; i++)
+		switch (opcodeObj.argtype(i)) {
+		    case BOOL_LITERAL:
+			destDataStreamRef.write(((Boolean) opcodeObj.argobject(i) == true) ? 0xff : 0x00);
+			break;
+		    case INT_LITERAL:
+			destDataStreamRef.writeInt((Integer) opcodeObj.argobject(i));
+			break;
+		    case INT_PACKED:
+			writePackedInt((Integer) opcodeObj.argobject(i));
+			break;
+		    case REAL_LITERAL:
+			destDataStreamRef.writeDouble((Double) opcodeObj.argobject(i));
+			break;
+		    case STR_LITERAL:
+			writeString((String) opcodeObj.argobject(i));
+			break;
+		}
     }
 
 }
