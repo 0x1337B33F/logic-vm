@@ -64,7 +64,7 @@ public class VMException extends Exception {
 		    this.vmStackTrace = new VMExceptionStackTraceElement[ frames ];
 		    for (int i = 0; i < frames; i++) {
 			VMFunction func = proxy.getFunctionOnCallStack(i);
-
+			this.vmStackTrace[i] = new VMExceptionStackTraceElement();
 			this.vmStackTrace[i].funcName = func.name();
 			this.vmStackTrace[i].sourceName = func.closure().getBytecode().source();
 			this.vmStackTrace[i].debugLine = this.vmStackTrace[i].debugCol = -1;
