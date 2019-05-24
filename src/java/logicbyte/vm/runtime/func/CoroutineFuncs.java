@@ -1,14 +1,16 @@
 package logicbyte.vm.runtime.func;
 
 import logicbyte.vm.LogicVM;
+import logicbyte.vm.VMClosure;
 import logicbyte.vm.VMDebugCallback;
+import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMFunctionPointer;
 import logicbyte.vm.VMInvokable;
+import logicbyte.vm.VMJFunctionLambda;
+import logicbyte.vm.exception.ThrowObjectException;
 import logicbyte.vm.exception.UncaughtUserException;
 import logicbyte.vm.exception.VMException;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
-import logicbyte.vm.VMJFunctionLambda;
-import logicbyte.vm.exception.ThrowObjectException;
 
 /**
  *
@@ -31,16 +33,17 @@ public class CoroutineFuncs {
     abstract static class CoroutineFuncInternalTyped implements VMJFunctionLambda {
 
 	@Override
-	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
+	public Object call(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
 	    if (args.length == 0)
 		throw new ThrowObjectException("arguments required");
 	    if (!(args[0] instanceof CoroutineImpl))
 		throw new ThrowObjectException("argument 1 not coroutine");
 	    CoroutineImpl co = (CoroutineImpl) args[0];
-	    return tailcall(vm, executor, debug, co, args);
+	    return tailcall(vm, executor, caller, debug, co, args);
 	}
 
-	public abstract Object tailcall(LogicVM vm, VMInvokable executor, VMDebugCallback debug, CoroutineImpl co, Object[] args) throws ThrowObjectException, Exception;
+	public abstract Object tailcall(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, CoroutineImpl co,
+		Object[] args) throws ThrowObjectException, Exception;
     }
 
     static class CoroutineFuncInternalReturnTyped<R> implements VMJFunctionLambda {
@@ -52,7 +55,7 @@ public class CoroutineFuncs {
 	}
 
 	@Override
-	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
+	public Object call(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
 	    if (args.length == 0)
 		throw new ThrowObjectException("arguments required");
 	    if (!(args[0] instanceof CoroutineImpl))
@@ -72,11 +75,11 @@ public class CoroutineFuncs {
 	}
     }
 
-    public static void apply(LogicVM inst) throws NoSuchMethodException {
+    public static void apply(final LogicVM inst, final VMClosure targetClosure) throws VMException, NoSuchMethodException {
 
-	inst.defineJType("coroutine", CoroutineImpl.class);
+	inst.defineJType(targetClosure, "coroutine", CoroutineImpl.class);
 
-	inst.defineJFunc("Coroutine_Create", BaseVMJFunctionImpl.generateFunctionLambda((vm, exec, debug, args) -> {
+	inst.defineJFunc("Coroutine_Create", BaseVMJFunctionImpl.generateFunctionLambda((vm, exec, caller, debug, args) -> {
 	    if (args.length == 0)
 		throw new ThrowObjectException("arguments required");
 	    if (!(args[0] instanceof VMFunctionPointer))
@@ -96,7 +99,8 @@ public class CoroutineFuncs {
 
 	inst.defineJFunc("Coroutine_Step", BaseVMJFunctionImpl.generateFunctionLambda(new CoroutineFuncInternalTyped() {
 	    @Override
-	    public Object tailcall(LogicVM vm, VMInvokable executor, VMDebugCallback debug, CoroutineImpl co, Object[] args) throws ThrowObjectException, Exception {
+	    public Object tailcall(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, CoroutineImpl co,
+		    Object[] args) throws ThrowObjectException, Exception {
 		if (co.complete)
 		    return true;
 
@@ -120,21 +124,24 @@ public class CoroutineFuncs {
 
 	inst.defineJFunc("Coroutine_IsComplete", BaseVMJFunctionImpl.generateFunctionLambda(new CoroutineFuncInternalTyped() {
 	    @Override
-	    public Object tailcall(LogicVM vm, VMInvokable executor, VMDebugCallback debug, CoroutineImpl co, Object[] args) throws ThrowObjectException, Exception {
+	    public Object tailcall(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, CoroutineImpl co,
+		    Object[] args) throws ThrowObjectException, Exception {
 		return co.complete;
 	    }
 	}));
 
 	inst.defineJFunc("Coroutine_IsError", BaseVMJFunctionImpl.generateFunctionLambda(new CoroutineFuncInternalTyped() {
 	    @Override
-	    public Object tailcall(LogicVM vm, VMInvokable executor, VMDebugCallback debug, CoroutineImpl co, Object[] args) throws ThrowObjectException, Exception {
+	    public Object tailcall(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, CoroutineImpl co,
+		    Object[] args) throws ThrowObjectException, Exception {
 		return co.caughtExceptionObj != null;
 	    }
 	}));
 
 	inst.defineJFunc("Coroutine_ThrowError", BaseVMJFunctionImpl.generateFunctionLambda(new CoroutineFuncInternalTyped() {
 	    @Override
-	    public Object tailcall(LogicVM vm, VMInvokable executor, VMDebugCallback debug, CoroutineImpl co, Object[] args) throws ThrowObjectException, Exception {
+	    public Object tailcall(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, CoroutineImpl co,
+		    Object[] args) throws ThrowObjectException, Exception {
 		if (co.caughtExceptionObj == null)
 		    return null;
 		throw co.caughtExceptionObj;
@@ -143,7 +150,8 @@ public class CoroutineFuncs {
 
 	inst.defineJFunc("Coroutine_GetError", BaseVMJFunctionImpl.generateFunctionLambda(new CoroutineFuncInternalTyped() {
 	    @Override
-	    public Object tailcall(LogicVM vm, VMInvokable executor, VMDebugCallback debug, CoroutineImpl co, Object[] args) throws ThrowObjectException, Exception {
+	    public Object tailcall(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, CoroutineImpl co,
+		    Object[] args) throws ThrowObjectException, Exception {
 		if (co.caughtExceptionObj == null)
 		    return null;
 		if (co.caughtExceptionObj instanceof ThrowObjectException)

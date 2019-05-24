@@ -2,7 +2,7 @@ package logicbyte.vm.runtime;
 
 import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMInvokableAccess;
-import logicbyte.vm.runtime.BaseVMInvokableImpl.Array;
+import logicbyte.vm.VMType;
 import logicbyte.vm.runtime.BaseVMInvokableImpl.Closure;
 import logicbyte.vm.runtime.BaseVMInvokableImpl.FunctionCallContext;
 import logictype.Pair;
@@ -87,7 +87,7 @@ public class BaseVMInvokableAccessImpl implements VMInvokableAccess {
     }
 
     @Override
-    public int getFunctionClosureLocalsType(int stackSlot, int closureSlot, int localNumber) {
+    public VMType getFunctionClosureLocalsType(int stackSlot, int closureSlot, int localNumber) {
 	return this.closure(stackSlot, closureSlot).typesOfClosureLocals.get(localNumber);
     }
 
@@ -99,9 +99,9 @@ public class BaseVMInvokableAccessImpl implements VMInvokableAccess {
     @Override
     public int getFunctionClosureLocalsArraySize(int stackSlot, int closureSlot, int localNumber) {
 	Object valueOfLocal = this.closure(stackSlot, closureSlot).valuesOfClosureLocals.get(localNumber);
-	if (!(valueOfLocal instanceof Array))
+	if (!(valueOfLocal instanceof BaseVMArrayImpl))
 	    throw new ClassCastException("local is not array type");
-	return ((Array) valueOfLocal).sizeOfArray;
+	return ((BaseVMArrayImpl) valueOfLocal).sizeOfArray;
     }
 
     @Override
@@ -112,9 +112,9 @@ public class BaseVMInvokableAccessImpl implements VMInvokableAccess {
     @Override
     public Object getFunctionClosureLocalsArrayValue(int stackSlot, int closureSlot, int localNumber, int arraySlot) {
 	Object valueOfLocal = this.closure(stackSlot, closureSlot).valuesOfClosureLocals.get(localNumber);
-	if (!(valueOfLocal instanceof Array))
+	if (!(valueOfLocal instanceof BaseVMArrayImpl))
 	    throw new ClassCastException("local is not array type");
-	return ((Array) valueOfLocal).arrayValues[arraySlot];
+	return ((BaseVMArrayImpl) valueOfLocal).arrayValues[arraySlot];
     }
 
     @Override

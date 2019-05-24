@@ -5,10 +5,11 @@ import java.util.LinkedList;
 import java.util.List;
 import logicbyte.vm.LogicVM;
 import logicbyte.vm.VMDebugCallback;
+import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMInvokable;
-import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 import logicbyte.vm.VMJFunctionLambda;
 import logicbyte.vm.exception.ThrowObjectException;
+import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 
 /**
  *
@@ -16,7 +17,7 @@ import logicbyte.vm.exception.ThrowObjectException;
  */
 public class ListFuncs {
 
-    public static Iterator<?> newGenericIterator(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException {
+    public static Iterator<?> newGenericIterator(LogicVM vm, VMInvokable executor,  VMFunction caller, VMDebugCallback debug, Object[] args) throws ThrowObjectException {
 	if (args.length != 1)
 	    throw new ThrowObjectException("list not provided");
 	if (!(args[0] instanceof List<?>))
@@ -24,7 +25,7 @@ public class ListFuncs {
 	return ((List<?>) args[0]).iterator();
     }
 
-    public static int getListSize(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException {
+    public static int getListSize(LogicVM vm, VMInvokable executor,  VMFunction caller, VMDebugCallback debug, Object[] args) throws ThrowObjectException {
 	if (args.length != 1)
 	    throw new ThrowObjectException("list not provided");
 	if (!(args[0] instanceof List<?>))
@@ -35,7 +36,7 @@ public class ListFuncs {
     static class ListAllocatorInternalTyped<T> implements VMJFunctionLambda {
 
 	@Override
-	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] arguments) throws ThrowObjectException, Exception {
+	public Object call(LogicVM vm, VMInvokable executor,  VMFunction caller, VMDebugCallback debug, Object[] arguments) throws ThrowObjectException, Exception {
 	    return new LinkedList<T>();
 	}
     };
@@ -64,7 +65,7 @@ public class ListFuncs {
 	}
 
 	@Override
-	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
+	public Object call(LogicVM vm, VMInvokable executor,  VMFunction caller, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
 	    if (args.length == 0)
 		throw new ThrowObjectException("list not provided");
 	    if (!(args[0] instanceof List<?>))
@@ -159,7 +160,7 @@ public class ListFuncs {
 
     }
 
-    public static boolean genericIteratorHasNext(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException {
+    public static boolean genericIteratorHasNext(LogicVM vm, VMInvokable executor,  VMFunction caller, VMDebugCallback debug, Object[] args) throws ThrowObjectException {
 	if (args.length != 1)
 	    throw new ThrowObjectException("list not provided");
 	if (!(args[0] instanceof Iterator<?>))
@@ -170,7 +171,7 @@ public class ListFuncs {
     static class IteratorFuncInternalNext<T> implements VMJFunctionLambda {
 
 	@Override
-	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
+	public Object call(LogicVM vm, VMInvokable executor,  VMFunction caller, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
 	    if (args.length == 0)
 		throw new ThrowObjectException("list not provided");
 	    if (!(args[0] instanceof Iterator<?>))

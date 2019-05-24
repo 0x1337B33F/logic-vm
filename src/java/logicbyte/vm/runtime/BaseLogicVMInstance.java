@@ -20,13 +20,17 @@ import logicbyte.vm.VMFunctionPointer;
 import logicbyte.vm.VMGlobalsTable.GlobalBox;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMJFunction;
+import logicbyte.vm.VMType;
+import logicbyte.vm.exception.DuplicateTypeNameException;
 import logicbyte.vm.exception.LinkerNotLoadedException;
 import logicbyte.vm.exception.NoSuchFunctionException;
 import logicbyte.vm.exception.UnsatisfiedImportException;
 import logicbyte.vm.exception.VMException;
 import logicbyte.vm.factory.VMClosureFactory;
+import logicbyte.vm.factory.VMTypeFactory;
 import logictype.BiDiMap;
 import logictype.HashMapList;
+import logictype.Log;
 import logictype.Pair;
 
 /**
@@ -52,12 +56,18 @@ import logictype.Pair;
  */
 public class BaseLogicVMInstance implements LogicVM {
 
+    protected Log logger = Log.VoidLog.INSTANCE;
+
     /**
      * The loader reference which shall be used to find and load linkers / bytecode data
      */
     final DynamicLibraryFile loaderImplObj;
 
     final VMClosureFactory closureFactory;
+
+    final VMTypeFactory typeFactory;
+
+    final BaseVMTypeIndex globalTypesIndex;
 
     /**
      * The bi-directional map of all loaded linker &amp; bytecode objects
@@ -74,15 +84,6 @@ public class BaseLogicVMInstance implements LogicVM {
     final HashMapList<LinkerObjectFile, LinkerObjectFile> dependencyMap;
 
     /**
-     * The VM global map of all type names, mapped to Java class types
-     */
-    final BiDiMap<String, Class<?>> jtypeTable;
-    /**
-     * The VM global map of all type names mapped to inherited types
-     */
-    final Map<String, List<String>> jtypeSuperTypeTable;
-
-    /**
      * The VM global map of all Java callable functions
      */
     final BiDiMap<String, VMJFunction> jfuncTable;
@@ -97,16 +98,22 @@ public class BaseLogicVMInstance implements LogicVM {
      *
      * @param loaderObj      The dynamic loader which shall be used to locate linker and bytecode file(s).
      * @param closureFactory The closure factory
+     * @param typeFactory    The type factory
      */
-    public BaseLogicVMInstance(DynamicLibraryFile loaderObj, VMClosureFactory closureFactory) {
+    public BaseLogicVMInstance(DynamicLibraryFile loaderObj, VMClosureFactory closureFactory, VMTypeFactory typeFactory) {
 	this.loaderImplObj = loaderObj;
 	this.closureFactory = closureFactory;
+	this.typeFactory = typeFactory;
+	this.globalTypesIndex = new BaseVMTypeIndex();
 	this.loadedObjMap = new BiDiMap<>();
 	this.closureMap = new HashMap<>();
 	this.dependencyMap = new HashMapList<>();
-	this.jtypeTable = new BiDiMap<>();
-	this.jtypeSuperTypeTable = new HashMap<>();
 	this.jfuncTable = new BiDiMap<>();
+    }
+
+    @Override
+    public void setLogger(Log receiver) {
+	this.logger = receiver;
     }
 
     @Override
@@ -115,6 +122,7 @@ public class BaseLogicVMInstance implements LogicVM {
 	    throw new IllegalArgumentException();
 	LogicBytecodeFile bytecode = this.loaderImplObj.getBytecodeFor(linker);
 	if (bytecode != null) {
+	    logger.debug("loading linker & bytecode for definition: %s, %s", linker, bytecode);
 	    Iterator<ImportsEntry> itx = linker.importsTable.iterator();
 	    while (itx.hasNext()) {
 		ImportsEntry importsDecl = itx.next();
@@ -129,6 +137,7 @@ public class BaseLogicVMInstance implements LogicVM {
 		    }
 		}
 		if (!flag) {
+		    logger.debug("looking for missing symbol declaration: `%s`", importsDecl.name);
 		    LinkerObjectFile loading = null;
 		    try {
 			if (load(callback, loading = loaderImplObj.getBytecodeFor(importsDecl.name)) == null)
@@ -140,17 +149,23 @@ public class BaseLogicVMInstance implements LogicVM {
 			throw new UnsatisfiedImportException(this, String.
 				format("Could not load bytecode for import `%s`", importsDecl.name), e);
 		    }
-		    if (loading != null)
+		    if (loading != null) {
 			this.dependencyMap.add(linker, loading);
+			logger.debug("loaded symbol declaration for `%s`: linker %s", importsDecl.name, loading);
+		    } else
+			throw new UnsatisfiedImportException(this, String.format("Did not load bytecode for import `%s`", importsDecl.name));
 		}
 	    }
+	    logger.debug("allocating closure for loaded: %s, %s", linker, bytecode);
 	    VMClosure allocClosure = null;
 	    try {
 		allocClosure = closureFactory.create(this, linker, bytecode);
 	    } catch (Exception e) {
 		throw new VMException("Exception when generating closure", e);
 	    }
+	    logger.debug("initializing closure");
 	    allocClosure.load(callback);
+	    logger.debug("done initializing closure");
 	    closureMap.put(linker, allocClosure);
 	    loadedObjMap.put(linker, bytecode);
 	    return allocClosure;
@@ -167,8 +182,9 @@ public class BaseLogicVMInstance implements LogicVM {
     public void unload(LinkerObjectFile linker) throws UnsatisfiedImportException {
 	if (linker == null)
 	    throw new IllegalArgumentException();
-
+	logger.debug("unloading linker %s", linker);
 	if (closureMap.containsKey(linker)) {
+	    logger.debug("checking dependency map for linker %s", linker);
 	    Iterator<Entry<LinkerObjectFile, LinkerObjectFile>> itx = this.dependencyMap.iterator();
 	    while (itx.hasNext()) {
 		Entry<LinkerObjectFile, LinkerObjectFile> entry = itx.next();
@@ -177,6 +193,7 @@ public class BaseLogicVMInstance implements LogicVM {
 			    source(), entry.getKey().source()));
 	    }
 
+	    logger.debug("unloading %s", linker);
 	    closureMap.remove(linker);
 	    loadedObjMap.remove(linker);
 	    dependencyMap.remove(linker);
@@ -184,67 +201,154 @@ public class BaseLogicVMInstance implements LogicVM {
     }
 
     @Override
-    public boolean defineJType(String handleTypeName, Class<?> klazz) {
-	if (this.jtypeTable.containsKey(handleTypeName))
-	    return false;
-	this.jtypeTable.put(handleTypeName, klazz);
-	return true;
+    public VMType defineJType(VMClosure closure, String handleTypeName, Class<?> klazz) throws VMException {
+	logger.debug("defining jtype: name `%s`, class %s", handleTypeName, klazz.getName());
+	VMType defn = this.globalTypesIndex.get(closure, handleTypeName);
+	if (defn == null)
+	    try {
+		defn = defineType(closure, handleTypeName);
+	    } catch (VMException e) {
+		throw new VMException(this, "exception when defining required type reference for native type", e);
+	    }
+	BaseVMType asMutable = (BaseVMType) defn;
+	asMutable.setKlazzType(this, klazz);
+	return asMutable;
     }
 
     @Override
-    public boolean defineJType(String handleTypeName, String superTypeName, Class<?> klazz) throws IllegalArgumentException {
-	if (this.jtypeTable.containsKey(handleTypeName))
-	    return false;
-	if (!this.jtypeTable.containsKey(superTypeName))
-	    throw new IllegalArgumentException(String.format("No such supertype %s", superTypeName));
+    public VMType defineJType(VMClosure closure, String handleTypeName, VMType superHandleType, Class<?> klazz) throws VMException {
+	logger.debug("defining jtype: name `%s`, class %s", handleTypeName, klazz.getName());
+	VMType defn = this.globalTypesIndex.get(closure, handleTypeName);
+	if (defn == null)
+	    try {
+		defn = defineType(closure, handleTypeName, superHandleType);
+	    } catch (VMException e) {
+		throw new VMException(this, "exception when defining required type reference for native type", e);
+	    }
+	else if (defn.supertype() != superHandleType)
+	    throw new VMException(this, String.format("expected super-type `%s`, but got super-type `%s` from code declaration",
+		    superHandleType.name(), defn.supertype().name()));
 
-	Class<?> knownSuperTypeKlazz = this.jtypeTable.get(superTypeName);
-
-	if (!knownSuperTypeKlazz.isAssignableFrom(klazz))
-	    throw new IllegalArgumentException(String.format("Supertype %s (class %s) is not assignable to class %s", superTypeName,
-		    knownSuperTypeKlazz.getName(), klazz.getName()));
-	this.jtypeTable.put(handleTypeName, klazz);
-
-	if (!this.jtypeSuperTypeTable.containsKey(superTypeName))
-	    this.jtypeSuperTypeTable.put(superTypeName, new LinkedList<>());
-	this.jtypeSuperTypeTable.get(superTypeName).add(handleTypeName);
-	return true;
+	BaseVMType asMutable = (BaseVMType) defn;
+	asMutable.setKlazzType(this, klazz);
+	return asMutable;
     }
 
     @Override
     public boolean defineJFunc(String funcName, VMJFunction impl) {
 	if (this.jfuncTable.containsKey(funcName))
 	    return false;
+	logger.debug("defining jfunc: name `%s`, impl %s", funcName, impl);
 	this.jfuncTable.put(funcName, impl);
 	return true;
     }
 
     @Override
-    public String getJTypeName(Class<?> klazz) {
+    public VMType getJType(final VMClosure definer, Class<?> klazz) {
 	if (klazz == null)
-	    return "nothing";
+	    return BaseVMPrimitiveType.TYPE_NOTHING;
 	if (klazz == BaseVMFunctionPointerImpl.class)
-	    return "code";
+	    return BaseVMPrimitiveType.TYPE_CODE;
 	if (klazz == Boolean.class || klazz == boolean.class)
-	    return "boolean";
+	    return BaseVMPrimitiveType.TYPE_BOOLEAN;
 	if (klazz == Integer.class || klazz == int.class)
-	    return "integer";
+	    return BaseVMPrimitiveType.TYPE_INTEGER;
 	if (klazz == Double.class || klazz == double.class)
-	    return "real";
+	    return BaseVMPrimitiveType.TYPE_REAL;
 	if (klazz == String.class)
-	    return "string";
+	    return BaseVMPrimitiveType.TYPE_STRING;
 
-	String typename = this.jtypeTable.reverse().get(klazz);
-	return (typename != null) ? typename : "handle";
+	final LinkedList< VMType> leaves = this.globalTypesIndex.leaves(definer);
+	if (leaves == null || leaves.isEmpty())
+	    return BaseVMPrimitiveType.TYPE_HANDLE;
+
+	final LinkedList< VMType> v0 = new LinkedList<>(), v1 = new LinkedList<>();
+	boolean flag = false;
+
+	Iterator<VMType> itx = leaves.iterator();
+	while (itx.hasNext()) {
+	    VMType t = itx.next();
+	    if (t.jklazz() == null) {
+		if (t.supertype() != null)
+		    v0.add(t.supertype());
+	    } else if (t.jklazz().isAssignableFrom(klazz))
+		return t;
+	    else if (t.supertype() != null)
+		v0.add(t.supertype());
+	}
+
+	while (!v0.isEmpty() || !v1.isEmpty()) {
+	    flag = v0.isEmpty();
+	    itx = (flag) ? v1.iterator() : v0.iterator();
+	    while (itx.hasNext()) {
+		VMType t = itx.next();
+
+		if (t.jklazz() == null) {
+		    if (t.supertype() != null)
+			if (flag)
+			    v0.add(t.supertype());
+			else
+			    v1.add(t.supertype());
+		} else if (t.jklazz().isAssignableFrom(klazz))
+		    return t;
+		else if (t.supertype() != null)
+		    if (flag)
+			v0.add(t.supertype());
+		    else
+			v1.add(t.supertype());
+	    }
+	}
+	return BaseVMPrimitiveType.TYPE_HANDLE;
     }
 
     @Override
-    public boolean isJType(Class<?> klazz, String typename) {
-	if (getJTypeName(klazz).equals(typename))
-	    return true;
-	if (klazz.getSuperclass() != null)
-	    return isJType(klazz.getSuperclass(), typename);
-	return false;
+    public VMType getType(VMClosure definer, String typeName) {
+	return this.globalTypesIndex.get(definer, typeName);
+    }
+
+    @Override
+    public void loaded(final List<LinkerObjectFile> ptr) {
+	if (ptr == null)
+	    throw new IllegalArgumentException("destination List<> pointer required");
+	synchronized ( this.loadedObjMap ) {
+	    ptr.addAll(this.loadedObjMap.keySet());
+	}
+    }
+
+    public HashMap<LinkerObjectFile, LogicBytecodeFile> loaded() {
+	return this.loadedObjMap;
+    }
+
+    protected Log logger() {
+	return (this.logger != null) ? this.logger : Log.VoidLog.INSTANCE;
+    }
+
+    @Override
+    public VMType defineType(final VMClosure definer, String nameOfType) throws VMException {
+	VMType defn = this.globalTypesIndex.get(definer, nameOfType);
+	if (defn != null)
+	    throw new DuplicateTypeNameException(nameOfType, "the type already exists in the closure, cannot redeclare");
+	try {
+	    defn = this.typeFactory.create(this, definer.getLinker(), definer.getBytecode(), definer, nameOfType);
+	} catch (Exception e) {
+	    throw new VMException(this, "exception when constructing type object", e);
+	}
+	this.globalTypesIndex.put(definer, defn);
+	return defn;
+    }
+
+    @Override
+    public VMType defineType(VMClosure definer, String nameOfType, VMType superType) throws VMException {
+	VMType defn = this.globalTypesIndex.get(definer, nameOfType);
+	if (defn != null)
+	    throw new DuplicateTypeNameException(nameOfType, "the type already exists in the closure, cannot redeclare");
+	try {
+	    defn = this.typeFactory.create(this, definer.getLinker(), definer.getBytecode(), definer, nameOfType, superType);
+	} catch (Exception e) {
+	    throw new VMException(this, "exception when constructing type object", e);
+	}
+	this.globalTypesIndex.put(definer, defn);
+	return defn;
     }
 
     protected Pair< LinkerObjectFile, VMClosure> getlib(String name) {
@@ -257,32 +361,69 @@ public class BaseLogicVMInstance implements LogicVM {
 	return null;
     }
 
-    protected int gettypenum(VMClosure closure, Object object) {
-	if (object == null)
-	    return BaseVMTypesTable.TYPENUMBER_NOTHING; // NOTHING
-	if (object instanceof VMFunctionPointer || object instanceof VMFunction)
-	    return BaseVMTypesTable.TYPENUMBER_CODE; // CODE
-	if (object instanceof Boolean || object.getClass().equals(boolean.class))
-	    return BaseVMTypesTable.TYPENUMBER_BOOLEAN; // BOOLEAN
-	if (object instanceof Integer || object.getClass().equals(int.class))
-	    return BaseVMTypesTable.TYPENUMBER_INTEGER; // INTEGER
-	if (object instanceof Double || object.getClass().equals(double.class))
-	    return BaseVMTypesTable.TYPENUMBER_REAL; // REAL
-	if (object instanceof String || object.getClass().equals(String.class))
-	    return BaseVMTypesTable.TYPENUMBER_STRING; // STRING
+    protected VMType gettype(final VMClosure closure, Class<?> klazz) {
+	if (klazz == null || klazz == Void.class)
+	    return BaseVMPrimitiveType.TYPE_NOTHING;
+	if (VMFunctionPointer.class.isAssignableFrom(klazz) || VMFunction.class.isAssignableFrom(klazz))
+	    return BaseVMPrimitiveType.TYPE_CODE;
+	if (Boolean.class.isAssignableFrom(klazz) || klazz.equals(boolean.class))
+	    return BaseVMPrimitiveType.TYPE_BOOLEAN;
+	if (Integer.class.isAssignableFrom(klazz) || klazz.equals(int.class))
+	    return BaseVMPrimitiveType.TYPE_INTEGER;
+	if (Double.class.isAssignableFrom(klazz) || klazz.equals(double.class))
+	    return BaseVMPrimitiveType.TYPE_REAL;
+	if (String.class.isAssignableFrom(klazz))
+	    return BaseVMPrimitiveType.TYPE_STRING;
 
-	String jtypename = this.jtypeTable.reverse().get(object.getClass());
-	if (jtypename != null) {
-	    int jtypenum = closure.types().getNumberOf(jtypename);
-	    return (jtypenum != -1) ? jtypenum : BaseVMTypesTable.TYPENUMBER_HANDLE;
+	LinkedList<VMType> types = closure.types().getTypes();
+	Iterator<VMType> itx = types.iterator();
+	while (itx.hasNext()) {
+	    VMType type = itx.next();
+	    if (type.jklazz() != null) { // if the type has a specific klazz...
+		if (type.jklazz().isAssignableFrom(klazz))
+		    return type;
+	    } else if (type.supertype() != null) { // no klazz, but has supertype...
+		VMType supertype = type.supertype();
+		while (supertype != null) {
+		    if (supertype.jklazz() != null) { // ... and the supertype defines a klazz ...
+			if (supertype.jklazz().isAssignableFrom(klazz))
+			    return type;
+			break; // ... the supertype is a different type
+		    }
+		    supertype = supertype.supertype();
+		}
+	    }
 	}
-	return BaseVMTypesTable.TYPENUMBER_HANDLE; // HANDLE (generic type)
+
+	return BaseVMPrimitiveType.TYPE_HANDLE;
     }
 
-    protected boolean checkcast(int destType, int srcType) {
-	return (destType == BaseVMTypesTable.TYPENUMBER_HANDLE)
-		? (srcType == BaseVMTypesTable.TYPENUMBER_HANDLE || srcType >= 7)
-		: (destType == srcType);
+    protected VMType gettype(final VMClosure closure, Object object) {
+	return gettype(closure, (object != null) ? object.getClass() : null);
+    }
+
+    protected boolean checkcast(VMType dstType, VMType srcType) throws VMException {
+	if (dstType == srcType)
+	    return true;
+
+	if (dstType == BaseVMPrimitiveType.TYPE_ANY)
+	    return srcType != BaseVMPrimitiveType.TYPE_NOTHING;
+
+	if (dstType == BaseVMPrimitiveType.TYPE_HANDLE)
+	    return srcType == BaseVMPrimitiveType.TYPE_HANDLE || srcType instanceof BaseVMType;
+
+	VMType uptype = srcType;
+	while (uptype != null && ((uptype = uptype.supertype()) != null))
+	    if (uptype == dstType)
+		return true;
+	return false;
+    }
+
+    @Override
+    public boolean canCastToType(VMType destType, VMType srcType) throws VMException {
+	if (destType == null || srcType == null)
+	    return false;
+	return checkcast(destType, srcType);
     }
 
     @Override
@@ -306,6 +447,18 @@ public class BaseLogicVMInstance implements LogicVM {
     @Override
     public Object result(VMInvokable inst) {
 	return ((BaseVMInvokableImpl) inst).result();
+    }
+
+    @Override
+    public Object[] resultArray(VMInvokable inst) {
+	Object resultObj = ((BaseVMInvokableImpl) inst).result();
+	if (!(resultObj instanceof BaseVMArrayImpl))
+	    return new Object[] {resultObj};
+	BaseVMArrayImpl asArrayObj = (BaseVMArrayImpl) resultObj;
+	Object[] unboxedResult = new Object[ asArrayObj.sizeOfArray ];
+	for (int i = 0, j = unboxedResult.length; i < j; i++)
+	    unboxedResult[i] = asArrayObj.arrayValues[i];
+	return unboxedResult;
     }
 
     @Override

@@ -1,9 +1,10 @@
 package logicbyte.vm.runtime;
 
 import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDecl;
+import logicbyte.vm.VMClosureTypeMapper;
 import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMFunctionPointer;
-import logicbyte.vm.VMTypesTable;
+import logicbyte.vm.VMType;
 
 /**
  *
@@ -30,19 +31,19 @@ public class BaseVMFunctionPointerImpl implements VMFunctionPointer {
     @Override
     public String returnTypeOfFunction() {
 	BytecodeFunctionDecl bytecode = this.funcImpl.bytecode();
-	return (bytecode.hasreturn()) ? this.funcImpl.closure().types().getTypeOf(bytecode.returntype()) : "nothing";
+	return (bytecode.hasreturn()) ? this.funcImpl.closure().types().getTypeOf(bytecode.returntype()).name() : "nothing";
     }
 
     @Override
-    public String[] argumentTypesOfFunction() {
+    public VMType[] argumentTypesOfFunction() {
 	if (!this.funcImpl.bytecode().hasargs())
-	    return new String[ 0 ];
+	    return new VMType[ 0 ];
 	BytecodeFunctionDecl bytecode = this.funcImpl.bytecode();
-	VMTypesTable typesTable = this.funcImpl.closure().types();
-	String[] typenames = new String[ bytecode.numargs() ];
-	for (int i = 0, j = typenames.length; i < j; i++)
-	    typenames[i] = typesTable.getTypeOf(bytecode.argtype(i));
-	return typenames;
+	VMClosureTypeMapper typesTable = this.funcImpl.closure().types();
+	VMType[] types = new VMType[ bytecode.numargs() ];
+	for (int i = 0, j = types.length; i < j; i++)
+	    types[i] = typesTable.getTypeOf(bytecode.argtype(i));
+	return types;
     }
 
     @Override

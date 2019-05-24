@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 import logicbyte.vm.LogicVM;
 import logicbyte.vm.VMDebugCallback;
+import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMJFunction;
 import logicbyte.vm.VMJFunctionLambda;
@@ -34,7 +35,7 @@ public class BaseVMJFunctionImpl implements VMJFunction {
 	public String name();
     }
 
-    private static final Class<?>[] VMJFUNC_SIG = new Class<?>[] {LogicVM.class, VMInvokable.class, VMDebugCallback.class, Object[].class};
+    private static final Class<?>[] VMJFUNC_SIG = new Class<?>[] {LogicVM.class, VMInvokable.class, VMFunction.class, VMDebugCallback.class, Object[].class};
 
     public static Map<String, BaseVMJFunctionImpl> generateFunctionClassStatic(Class<?> klazz) throws NoSuchMethodException, SecurityException {
 	HashMap< String, BaseVMJFunctionImpl> result = new HashMap<>();
@@ -156,9 +157,9 @@ public class BaseVMJFunctionImpl implements VMJFunction {
     }
 
     @Override
-    public Object invoke(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] arguments) throws IllegalAccessException, IllegalArgumentException, InvocationTargetException, ThrowObjectException {
+    public Object invoke(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] arguments) throws IllegalAccessException, IllegalArgumentException, InvocationTargetException, ThrowObjectException {
 	try {
-	    return this.invokeMethod.invoke(this.invokeObj, new Object[] {vm, executor, debug, arguments});
+	    return this.invokeMethod.invoke(this.invokeObj, new Object[] {vm, executor, caller, debug, arguments});
 	} catch (InvocationTargetException ite) {
 	    /* Unbox InvocationTargetException to true exception: */
 	    if (ite.getCause() instanceof ThrowObjectException)

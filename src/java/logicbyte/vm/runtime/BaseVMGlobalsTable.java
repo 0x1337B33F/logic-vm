@@ -3,6 +3,7 @@ package logicbyte.vm.runtime;
 import java.util.HashMap;
 import java.util.Map;
 import logicbyte.vm.VMGlobalsTable;
+import logicbyte.vm.VMType;
 
 /**
  *
@@ -17,7 +18,7 @@ public class BaseVMGlobalsTable implements VMGlobalsTable {
     }
 
     @Override
-    public boolean defineGlobal(String nameOfGlobalValue, GlobalType typeOfGlobal, int typeOfGlobalValue, boolean globalIsArrayType,
+    public boolean defineGlobal(String nameOfGlobalValue, GlobalType typeOfGlobal, VMType typeOfGlobalValue, boolean globalIsArrayType,
 	    Object initialGlobalValueObject) {
 	if (globalBoxMap.containsKey(nameOfGlobalValue))
 	    return false;

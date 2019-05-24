@@ -11,6 +11,7 @@ import logicbyte.bytecode.Opcode;
 import logicbyte.bytecode.Opcode.Opcodes;
 import logicbyte.bytecode.OpcodeParamValueTable.BinaryExpressionParamValueTable;
 import logicbyte.bytecode.OpcodeParamValueTable.UnaryExpressionParamValueTable;
+import logicbyte.vm.VMClosureTypeMapper;
 import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMFunctionPointer;
@@ -19,6 +20,7 @@ import logicbyte.vm.VMGlobalsTable.GlobalType;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMInvokableAccess;
 import logicbyte.vm.VMJFunction;
+import logicbyte.vm.VMType;
 import logicbyte.vm.exception.NoSuchFunctionException;
 import logicbyte.vm.exception.ThrowObjectException;
 import logicbyte.vm.exception.UncaughtUserException;
@@ -31,20 +33,12 @@ import logictype.Pair;
  */
 public class BaseVMInvokableImpl implements VMInvokable {
 
-    // FIXME: change the visibility from `public` to something more shaded.
-    public static class Array {
-
-	public int typeOfArray;
-	public int sizeOfArray;
-	public Object[] arrayValues;
-    }
-
     protected static class Closure {
 
 	int endOfClosureAddress;
 	int startOfClosureLocals;
 	int numberOfClosureLocals;
-	List<Integer> typesOfClosureLocals;
+	List<VMType> typesOfClosureLocals;
 	List<Boolean> arrayTypeOfClosureLocal;
 	List<Object> valuesOfClosureLocals;
     }
@@ -203,21 +197,61 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    c.valuesOfClosureLocals = new LinkedList<>();
 	    c.arrayTypeOfClosureLocal = new LinkedList<>();
 
+	    final VMClosureTypeMapper typeMapper = ptr.closure().types();
+
 	    if (funcBytecode.hasargs())
 		for (int i = 0, j = funcBytecode.numargs(); i < j; i++) {
-		    int wantedType = funcBytecode.argtype(i),
-			    currentType = instanceObj.gettypenum(ptr.closure(), arguments[i]);
-		    if (!instanceObj.checkcast(wantedType, currentType))
-			throw new VMException(String.format("argument at index %s not of required type %s, got %s", i, wantedType,
-				currentType));
-		    c.typesOfClosureLocals.add(wantedType);
-		    c.valuesOfClosureLocals.add(arguments[i]);
-		    c.arrayTypeOfClosureLocal.add(false);
+		    Class<?> klazzOfArgVal = arguments[i].getClass();
+
+		    if (klazzOfArgVal.isArray()) {
+			if (!funcBytecode.argarray(i))
+			    throw new VMException(String.format("argument at index %s is literal, got array", i));
+			Object[] anArrayOfValue = (Object[]) arguments[i];
+			Class<?> klazzOfArrayArgVal = klazzOfArgVal.getComponentType();
+
+			VMType wantedType = typeMapper.getTypeOf(funcBytecode.argtype(i)),
+				arrayKlazzType = instanceObj.gettype(ptr.closure(), klazzOfArrayArgVal);
+
+			if (!instanceObj.checkcast(wantedType, arrayKlazzType))
+			    throw new VMException(String.format("argument at index %s not of required array type %s, got %s", i, wantedType,
+				    arrayKlazzType));
+
+			final BaseVMArrayImpl allocArrayObj = new BaseVMArrayImpl(arrayKlazzType, anArrayOfValue.length);
+			for (int k = 0, l = anArrayOfValue.length; k < l; k++)
+			    allocArrayObj.arrayValues[k] = anArrayOfValue[k];
+
+			c.typesOfClosureLocals.add(wantedType);
+			c.valuesOfClosureLocals.add(allocArrayObj);
+			c.arrayTypeOfClosureLocal.add(true);
+		    } else if (arguments[i] instanceof BaseVMArrayImpl) {
+			if (!funcBytecode.argarray(i))
+			    throw new VMException(String.format("argument at index %s is literal, got array", i));
+
+			BaseVMArrayImpl asVMArray = (BaseVMArrayImpl) arguments[i];
+			VMType wantedType = typeMapper.getTypeOf(funcBytecode.argtype(i));
+			if (!instanceObj.checkcast(wantedType, asVMArray.typeOfArray))
+			    throw new VMException(String.format("argument at index %s not of required array type %s, got %s", i, wantedType,
+				    asVMArray.typeOfArray));
+			c.typesOfClosureLocals.add(wantedType);
+			c.valuesOfClosureLocals.add(asVMArray);
+			c.arrayTypeOfClosureLocal.add(true);
+		    } else {
+			if (funcBytecode.argarray(i))
+			    throw new VMException(String.format("argument at %s is array, got literal", i));
+			VMType wantedType = typeMapper.getTypeOf(funcBytecode.argtype(i)),
+				currentType = instanceObj.gettype(ptr.closure(), arguments[i]);
+			if (!instanceObj.checkcast(wantedType, currentType))
+			    throw new VMException(String.format("argument at index %s not of required type %s, got %s", i, wantedType,
+				    currentType));
+			c.typesOfClosureLocals.add(wantedType);
+			c.valuesOfClosureLocals.add(arguments[i]);
+			c.arrayTypeOfClosureLocal.add(false);
+		    }
 		}
 
 	    if (funcBytecode.haslocals())
 		for (int i = 0, j = funcBytecode.numlocals(); i < j; i++) {
-		    c.typesOfClosureLocals.add(funcBytecode.localtype(i));
+		    c.typesOfClosureLocals.add(typeMapper.getTypeOf(funcBytecode.localtype(i)));
 		    c.valuesOfClosureLocals.add(null);
 		    c.arrayTypeOfClosureLocal.add(funcBytecode.localarray(i));
 		}
@@ -235,6 +269,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    if (jfunc == null)
 		throw new NoSuchFunctionException(instanceObj, this, String.format("native function not found: %s", funcBytecode.
 			name()));
+	    
+	    final VMFunction caller = callStack.peek().a();
 
 	    Pair<VMFunction, FunctionCallContext> nativeContext = enterfunc(debugger, ptr, generatingOp);
 	    nativeContext.b().contextType = FunctionCallContextType.NATIVE;
@@ -242,7 +278,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    Object thrown = null;
 
 	    try {
-		Object result = jfunc.invoke(instanceObj, this, (debugger != null) ? debugger : debuggerObj, arguments);
+		Object result = jfunc.invoke(instanceObj, this, caller, (debugger != null) ? debugger : debuggerObj, arguments);
 		exitfunc(debugger, nativeContext.a(), result);
 	    } catch (IllegalAccessException reflect) {
 		throw new VMException("Reflection exception", reflect);
@@ -512,7 +548,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	return (T) obj;
     }
 
-    private int __getlocaltype(FunctionCallContext boundary, int local) throws VMException {
+    private VMType __getlocaltype(FunctionCallContext boundary, int local) throws VMException {
 	Closure closure = __getclosure(boundary, local);
 	if (closure == null)
 	    __throw("cannot getlocaltype on a non-allocated lvar slot");
@@ -522,7 +558,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	return closure.typesOfClosureLocals.get(local);
     }
 
-    private Array __getlocalarr(FunctionCallContext boundary, int local) throws VMException {
+    private BaseVMArrayImpl __getlocalarr(FunctionCallContext boundary, int local) throws VMException {
 	Closure closure = __getclosure(boundary, local);
 	if (closure == null)
 	    __throw("cannot getlocalarr on a non-allocated lvar slot");
@@ -530,9 +566,9 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (local < 0)
 	    __throw("cannot getlocalarr on a non-allocated lvar slot");
 	Object obj = closure.valuesOfClosureLocals.get(local);
-	if (!(obj instanceof Array))
+	if (!(obj instanceof BaseVMArrayImpl))
 	    __throw(String.format("Local value %s is not of array type", obj.getClass().getName()));
-	return (Array) obj;
+	return (BaseVMArrayImpl) obj;
     }
 
     private void __setlocal(VMFunction fn, FunctionCallContext boundary, int local, Object value) throws VMException {
@@ -542,9 +578,10 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	local = local - closure.startOfClosureLocals;
 	if (local < 0)
 	    __throw("cannot setlocal on a non-allocated lvar slot");
-	if (!instanceObj.checkcast(closure.typesOfClosureLocals.get(local), instanceObj.gettypenum(fn.closure(), value)))
+	VMType typeOfValue = instanceObj.gettype(fn.closure(), value);
+	if (!instanceObj.checkcast(closure.typesOfClosureLocals.get(local), typeOfValue))
 	    __throw(String.format("cannot set local in slot %s to type %s, expecting type %s", local,
-		    instanceObj.gettypenum(fn.closure(), value), closure.typesOfClosureLocals.get(local)));
+		    typeOfValue, closure.typesOfClosureLocals.get(local)));
 	closure.valuesOfClosureLocals.set(local, value);
     }
 
@@ -623,10 +660,25 @@ public class BaseVMInvokableImpl implements VMInvokable {
     }
 
     private void exec__RETN(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
-	if (o.getopt(Opcodes.BITMASK_RETN_RVAL)) {
-	    Object any = __getstackval(boundary, Object.class);
-	    exitfunc(debugger, func, any);
-	} else
+	if (o.getopt(Opcodes.BITMASK_RETN_RVAL))
+	    if (func.bytecode().maskflag(BytecodeFunctionDecl.FUNC_MASK_HASRETARR)) {
+		BaseVMArrayImpl array = __getstackval(boundary, BaseVMArrayImpl.class);
+		VMType returnType = func.closure().types().getTypeOf(func.bytecode().returntype()),
+			hasType = array.typeOfArray;
+		if (!instanceObj.checkcast(returnType, hasType))
+		    __raise(debugger, boundary, String.format("expected %s array return type, got %s array type", returnType, hasType));
+		exitfunc(debugger, func, array);
+	    } else {
+		Object any = __getstackval(boundary, Object.class);
+		if (any instanceof BaseVMArrayImpl)
+		    __raise(debugger, boundary, "unexpected array return from literal return function");
+		VMType returnType = func.closure().types().getTypeOf(func.bytecode().returntype()),
+			hasType = instanceObj.gettype(func.closure(), any);
+		if (!instanceObj.checkcast(returnType, hasType))
+		    __raise(debugger, boundary, String.format("expected %s return type, got %s type", returnType, hasType));
+		exitfunc(debugger, func, any);
+	    }
+	else
 	    exitfunc(debugger, func, null);
     }
 
@@ -681,7 +733,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (globalBox == null)
 	    __throw(String.format("CALLGLOBAL: no such global %s", globalName));
 
-	if (instanceObj.checkcast(BaseVMTypesTable.TYPENUMBER_CODE, globalBox.typeOfGlobalValue))
+	if (instanceObj.checkcast(BaseVMPrimitiveType.TYPE_CODE, globalBox.typeOfGlobalValue))
 	    __throw(String.format("CALLGLOBAL: global not code type"));
 
 	VMFunctionPointer ptr = (VMFunctionPointer) globalBox.valueInGlobalBox;
@@ -1077,11 +1129,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
     private void exec__INCL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	int local = __getoparg(o, 0, Integer.class);
-	int localType = __getlocaltype(boundary, local);
-	if (localType != BaseVMTypesTable.TYPENUMBER_INTEGER && localType != BaseVMTypesTable.TYPENUMBER_REAL)
+	VMType localType = __getlocaltype(boundary, local);
+	if (localType != BaseVMPrimitiveType.TYPE_INTEGER && localType != BaseVMPrimitiveType.TYPE_REAL)
 	    __raise(debugger, boundary, String.format("Increment not permitted on non-numeric type %s", localType));
 
-	if (localType == BaseVMTypesTable.TYPENUMBER_INTEGER) {
+	if (localType == BaseVMPrimitiveType.TYPE_INTEGER) {
 	    int value = __getlocal(boundary, local, Integer.class);
 	    if (o.getopt(Opcodes.BITMASK_INCL_PRE))
 		boundary.functionStackStack.push(value);
@@ -1089,7 +1141,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    if (o.getopt(Opcodes.BITMASK_INCL_POST))
 		boundary.functionStackStack.push(value);
 	    __setlocal(func, boundary, local, value);
-	} else if (localType == BaseVMTypesTable.TYPENUMBER_REAL) {
+	} else if (localType == BaseVMPrimitiveType.TYPE_REAL) {
 	    double value = __getlocal(boundary, local, Double.class);
 	    if (o.getopt(Opcodes.BITMASK_INCL_PRE))
 		boundary.functionStackStack.push(value);
@@ -1103,11 +1155,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
     private void exec__DECL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	int local = __getoparg(o, 0, Integer.class);
-	int localType = __getlocaltype(boundary, local);
-	if (localType != BaseVMTypesTable.TYPENUMBER_INTEGER && localType != BaseVMTypesTable.TYPENUMBER_REAL)
+	VMType localType = __getlocaltype(boundary, local);
+	if (localType != BaseVMPrimitiveType.TYPE_INTEGER && localType != BaseVMPrimitiveType.TYPE_REAL)
 	    __raise(debugger, boundary, String.format("Decrement not permitted on non-numeric type %s", localType));
 
-	if (localType == BaseVMTypesTable.TYPENUMBER_INTEGER) {
+	if (localType == BaseVMPrimitiveType.TYPE_INTEGER) {
 	    int value = __getlocal(boundary, local, Integer.class);
 	    if (o.getopt(Opcodes.BITMASK_DECL_PRE))
 		boundary.functionStackStack.push(value);
@@ -1115,7 +1167,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    if (o.getopt(Opcodes.BITMASK_DECL_POST))
 		boundary.functionStackStack.push(value);
 	    __setlocal(func, boundary, local, value);
-	} else if (localType == BaseVMTypesTable.TYPENUMBER_REAL) {
+	} else if (localType == BaseVMPrimitiveType.TYPE_REAL) {
 	    double value = __getlocal(boundary, local, Double.class);
 	    if (o.getopt(Opcodes.BITMASK_DECL_PRE))
 		boundary.functionStackStack.push(value);
@@ -1160,13 +1212,12 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    if (ptr != __getoparg(o, 1, Integer.class))
 		__throw(String.format("NEWUPVAR: new upvar defined in slot %s does not match expected lvar slot %s", ptr, __getoparg(o, 1,
 			Integer.class)));
-	    currentClosure.typesOfClosureLocals.add(__getoparg(o, 0, Integer.class));
+
+	    final VMType typeOfNewUpvar = func.closure().types().getTypeOf(__getoparg(o, 0, Integer.class));
+	    currentClosure.typesOfClosureLocals.add(typeOfNewUpvar);
 
 	    if (o.getopt(Opcodes.BITMASK_NEWUPVAR_ARRAY)) {
-		Array allocArrayBox = new Array();
-		allocArrayBox.typeOfArray = __getoparg(o, 0, Integer.class);
-		allocArrayBox.sizeOfArray = __getstackval(boundary, Integer.class);
-		allocArrayBox.arrayValues = new Object[ allocArrayBox.sizeOfArray ];
+		BaseVMArrayImpl allocArrayBox = new BaseVMArrayImpl(typeOfNewUpvar, __getstackval(boundary, Integer.class));
 		currentClosure.valuesOfClosureLocals.add(allocArrayBox);
 	    } else
 		currentClosure.valuesOfClosureLocals.add(null);
@@ -1182,18 +1233,15 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		__throw("NEWARRAY: cannot initialize array in closure scope");
 
 	    int sizeObj = __getstackval(boundary, Integer.class);
-	    int typeNum = __getoparg(o, 0, Integer.class);
+	    VMType type = func.closure().types().getTypeOf(__getoparg(o, 0, Integer.class));
 	    int localNum = __getoparg(o, 1, Integer.class);
 
-	    if (currentClosure.typesOfClosureLocals.get(localNum) != typeNum)
+	    if (currentClosure.typesOfClosureLocals.get(localNum) != type)
 		__throw("NEWARRAY: cannot initialize array of type to other type");
 	    if (!currentClosure.arrayTypeOfClosureLocal.get(localNum))
 		__throw("NEWARRAY: cannot initialize array into non-array local slot");
 
-	    Array allocArrayBox = new Array();
-	    allocArrayBox.typeOfArray = currentClosure.typesOfClosureLocals.get(localNum);
-	    allocArrayBox.sizeOfArray = sizeObj;
-	    allocArrayBox.arrayValues = new Object[ sizeObj ];
+	    BaseVMArrayImpl allocArrayBox = new BaseVMArrayImpl(currentClosure.typesOfClosureLocals.get(localNum), sizeObj);
 	    currentClosure.valuesOfClosureLocals.set(localNum, allocArrayBox);
 	} catch (EmptyStackException e) {
 	    throw new VMException(instanceObj, this, "empty closure stack", e);
@@ -1215,17 +1263,17 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
 	Object newValueInBox = __getstackval(boundary, Object.class);
 
-	if (newValueInBox instanceof Array) {
+	if (newValueInBox instanceof BaseVMArrayImpl) {
 	    if (!globalBox.globalIsArrayType)
 		throw new IllegalStateException(String.format("SETGLOBAL: cannot set literal global to array value"));
 
-	    Array assignArrayObj = (Array) newValueInBox;
+	    BaseVMArrayImpl assignArrayObj = (BaseVMArrayImpl) newValueInBox;
 	    if (assignArrayObj.typeOfArray != globalBox.typeOfGlobalValue)
 		throw new IllegalStateException(String.format("SETGLOBAL: global with array-type %s cannot contain array-value of type %s",
 			globalBox.typeOfGlobalValue, assignArrayObj.typeOfArray));
 	    globalBox.valueInGlobalBox = newValueInBox;
 	} else {
-	    int typeOfNewValueInBox = instanceObj.gettypenum(func.closure(), newValueInBox);
+	    VMType typeOfNewValueInBox = instanceObj.gettype(func.closure(), newValueInBox);
 	    if (typeOfNewValueInBox != globalBox.typeOfGlobalValue)
 		throw new IllegalStateException(String.format("SETGLOBAL: global with type %s cannot contain value of type %s",
 			globalBox.typeOfGlobalValue, typeOfNewValueInBox));
@@ -1239,7 +1287,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	Object assignVal = __getstackval(boundary, Object.class);
 	int localNum = __getoparg(o, 0, Integer.class);
 
-	Array arrayPtr = __getlocalarr(boundary, localNum);
+	BaseVMArrayImpl arrayPtr = __getlocalarr(boundary, localNum);
 
 	if (arrayPtr == null) {
 	    __raise(debugger, boundary, "array not initialized");
@@ -1250,7 +1298,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    return;
 	}
 
-	int typeOfAssignVal = instanceObj.gettypenum(func.closure(), assignVal);
+	VMType typeOfAssignVal = instanceObj.gettype(func.closure(), assignVal);
 	if (typeOfAssignVal != arrayPtr.typeOfArray) {
 	    __raise(debugger, boundary, String.format("array type %s cannot contain values of type %s", arrayPtr.typeOfArray,
 		    typeOfAssignVal));
@@ -1271,10 +1319,10 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (globalBox.typeOfGlobal == GlobalType.NATIVEGLOBAL)
 	    __throw(String.format("SETGLOBALARR: cannot set native global"));
 
-	if (!globalBox.globalIsArrayType || !(globalBox.valueInGlobalBox instanceof Array))
+	if (!globalBox.globalIsArrayType || !(globalBox.valueInGlobalBox instanceof BaseVMArrayImpl))
 	    throw new IllegalStateException(String.format("GETGLOBALARR: global %s is not array type", globalName));
 
-	Array arrayPtr = (Array) globalBox.valueInGlobalBox;
+	BaseVMArrayImpl arrayPtr = (BaseVMArrayImpl) globalBox.valueInGlobalBox;
 
 	if (arrayPtr == null) {
 	    __raise(debugger, boundary, "array not initialized");
@@ -1285,7 +1333,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    return;
 	}
 
-	int typeOfAssignVal = instanceObj.gettypenum(func.closure(), assignVal);
+	VMType typeOfAssignVal = instanceObj.gettype(func.closure(), assignVal);
 	if (typeOfAssignVal != arrayPtr.typeOfArray) {
 	    __raise(debugger, boundary, String.format("array type %s cannot contain values of type %s", arrayPtr.typeOfArray,
 		    typeOfAssignVal));
@@ -1297,9 +1345,9 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
     private void exec__GETLOCAL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	int local = __getoparg(o, 0, Integer.class);
-	int localType = __getlocaltype(boundary, local);
+	VMType localType = __getlocaltype(boundary, local);
 	Object value = __getlocal(boundary, local, Object.class);
-	if ((localType == 1 || localType >= 7) && value == null) {
+	if ((localType == BaseVMPrimitiveType.TYPE_HANDLE || localType instanceof BaseVMType) && value == null) {
 	    __raise(debuggerObj, boundary, "attempt to dereference null handle pointer");
 	    return;
 	}
@@ -1312,7 +1360,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (globalBox == null)
 	    throw new IllegalStateException(String.format("GETGLOBAL: no such global %s", globalName));
 
-	if ((globalBox.typeOfGlobalValue == 1 || globalBox.typeOfGlobalValue >= 7) && globalBox.valueInGlobalBox == null) {
+	if ((globalBox.typeOfGlobalValue == BaseVMPrimitiveType.TYPE_HANDLE || globalBox.typeOfGlobalValue instanceof BaseVMType) && globalBox.valueInGlobalBox == null) {
 	    __raise(debuggerObj, boundary, "attempt to dereference null handle pointer");
 	    return;
 	}
@@ -1322,7 +1370,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
     private void exec__GETLOCALARR(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	int arrayIdx = __getstackval(boundary, Integer.class);
 	int localNum = __getoparg(o, 0, Integer.class);
-	Array arrayPtr = __getlocalarr(boundary, localNum);
+	BaseVMArrayImpl arrayPtr = __getlocalarr(boundary, localNum);
 	if (arrayPtr == null) {
 	    __raise(debugger, boundary, "array not initialized");
 	    return;
@@ -1342,10 +1390,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (globalBox == null)
 	    throw new IllegalStateException(String.format("GETGLOBALARR: no such global %s", globalName));
 
-	if (!globalBox.globalIsArrayType || !(globalBox.valueInGlobalBox instanceof Array))
+	if (!globalBox.globalIsArrayType || !(globalBox.valueInGlobalBox instanceof BaseVMArrayImpl))
 	    throw new IllegalStateException(String.format("GETGLOBALARR: global %s is not array type", globalName));
-	Array globalArrayObj = (Array) globalBox.valueInGlobalBox;
-	if ((globalBox.typeOfGlobalValue == 1 || globalBox.typeOfGlobalValue >= 7) && globalArrayObj.arrayValues[globalArrayIndex] == null) {
+	BaseVMArrayImpl globalArrayObj = (BaseVMArrayImpl) globalBox.valueInGlobalBox;
+	if ((globalBox.typeOfGlobalValue == BaseVMPrimitiveType.TYPE_HANDLE || globalBox.typeOfGlobalValue instanceof BaseVMType)
+		&& globalArrayObj.arrayValues[globalArrayIndex] == null) {
 	    __raise(debuggerObj, boundary, "attempt to dereference null handle pointer");
 	    return;
 	}
@@ -1368,13 +1417,13 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (!o.getopt(Opcodes.BITMASK_CATCH_HASNEXT))
 	    boundary.functionTryCatchStack.pop();
 
-	int catchtype = __getoparg(o, 0, Integer.class),
-		catchnext = __getoparg(o, 1, Integer.class);
+	VMType catchtype = func.closure().types().getTypeOf(__getoparg(o, 0, Integer.class));
+	int catchnext = __getoparg(o, 1, Integer.class);
 
 	if (boundary.functionCaughtExceptionObj == null)
 	    boundary.programCounterValue = (catchnext - 1);
 	else {
-	    int objtype = instanceObj.gettypenum(func.closure(), boundary.functionCaughtExceptionObj);
+	    VMType objtype = instanceObj.gettype(func.closure(), boundary.functionCaughtExceptionObj);
 	    if (instanceObj.checkcast(catchtype, objtype)) {
 		boundary.functionStackStack.push(boundary.functionCaughtExceptionObj);
 		boundary.functionCaughtExceptionObj = null;

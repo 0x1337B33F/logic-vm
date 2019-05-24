@@ -4,10 +4,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import logicbyte.vm.LogicVM;
 import logicbyte.vm.VMDebugCallback;
+import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMInvokable;
-import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 import logicbyte.vm.VMJFunctionLambda;
 import logicbyte.vm.exception.ThrowObjectException;
+import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 
 /**
  *
@@ -29,7 +30,7 @@ public class RegexpFuncs {
     abstract static class RegexpFuncInternal implements VMJFunctionLambda {
 
 	@Override
-	public Object call(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
+	public Object call(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) throws ThrowObjectException, Exception {
 	    if (args.length == 0)
 		throw new ThrowObjectException("matcher not provided");
 	    if (!(args[0] instanceof RegexpWrapperImpl))
@@ -40,7 +41,7 @@ public class RegexpFuncs {
 	public abstract Object tailcall(RegexpWrapperImpl matcher, Object[] args) throws ThrowObjectException;
     }
 
-    public static RegexpWrapperImpl newMatcher(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] args) throws ThrowObjectException {
+    public static RegexpWrapperImpl newMatcher(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) throws ThrowObjectException {
 	if (args.length == 0)
 	    throw new ThrowObjectException("pattern not provided");
 	if (!(args[0] instanceof String))
