@@ -21,7 +21,7 @@ public interface VMClosure {
 
     public VMGlobalsTable globals();
 
-    public VMTypesTable types();
+    public VMClosureTypeMapper types();
 
     public VMFunction getFunction(String name);
 

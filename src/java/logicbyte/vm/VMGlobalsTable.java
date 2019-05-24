@@ -36,7 +36,7 @@ public interface VMGlobalsTable {
 	/**
 	 * The type of the global value.
 	 */
-	public int typeOfGlobalValue;
+	public VMType typeOfGlobalValue;
 
 	/**
 	 * If the global is an array type
@@ -56,12 +56,12 @@ public interface VMGlobalsTable {
      * @param nameOfGlobalValue        The name of the global variable
      * @param typeOfGlobal             The type of the global
      * @param typeOfGlobalValue        The type of the global value
-     * @param globalIsArrayType		      If the global is an array of the type
+     * @param globalIsArrayType        If the global is an array of the type
      * @param initialGlobalValueObject The initial value for the global, or null
      *
      * @return If the global was defined or not
      */
-    public boolean defineGlobal(String nameOfGlobalValue, GlobalType typeOfGlobal, int typeOfGlobalValue, boolean globalIsArrayType,
+    public boolean defineGlobal(String nameOfGlobalValue, GlobalType typeOfGlobal, VMType typeOfGlobalValue, boolean globalIsArrayType,
 	    Object initialGlobalValueObject);
 
     /**

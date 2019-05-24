@@ -1,17 +1,21 @@
 package logicbyte.vm;
 
+import java.util.List;
 import logicbyte.bytecode.LinkerObjectFile;
 import logicbyte.loader.DynamicLibraryFile.DynamicLibraryException;
 import logicbyte.vm.exception.LinkerNotLoadedException;
 import logicbyte.vm.exception.NoSuchFunctionException;
 import logicbyte.vm.exception.UnsatisfiedImportException;
 import logicbyte.vm.exception.VMException;
+import logictype.Log;
 
 /**
  *
  * @author Lochie
  */
 public interface LogicVM {
+
+    public void setLogger(Log receiver);
 
     /**
      * Load and create a global scope for the linker specified. If the linker imports other declarations, those declarations shall be
@@ -33,6 +37,8 @@ public interface LogicVM {
      */
     public VMClosure load(final VMDebugCallback callback, final LinkerObjectFile linker) throws InterruptedException,
 	    DynamicLibraryException, VMException, UnsatisfiedImportException;
+
+    public void loaded(final List<LinkerObjectFile> ptr);
 
     /**
      * Unload and dispose a global scope for the linker specified. If the linker specified exports declarations that are in use by other
@@ -58,27 +64,29 @@ public interface LogicVM {
      * Define a native type for this VM instance which has the specified friendly name; the type-name specified shall implicitly extend the
      * VM 'handle' type. The type-name provided shall be used when referencing the Java object in the VM.
      *
+     * @param definer        The closure object which defines the type
      * @param handleTypeName The type-name to use to reference the Java type provided
      * @param klazz          The Java class type
      *
-     * @return If the type was registered with the virtual machine
+     * @return The created type object
      */
-    public boolean defineJType(String handleTypeName, Class<?> klazz);
+    public VMType defineJType(final VMClosure definer, String handleTypeName, Class<?> klazz) throws VMException;
 
     /**
      * Define a native type for this VM instance which has the specified friendly name; the type-name specified shall extend the previously
      * defined Java type by type-name. The type-name provided shall be used when referencing the Java object in the VM; the Java type
      * provided must be assignable to the super-type provided.
      *
-     * @param handleTypeName      The type-name to use to reference the Java type provided
-     * @param superHandleTypeName The super type-name which is an ancestor of the Java type specified by the name
-     * @param klazz               The Java class type
+     * @param definer         The closure object which defines the type
+     * @param handleTypeName  The type-name to use to reference the Java type provided
+     * @param superHandleType The supertype which is an ancestor of the Java type specified by the name
+     * @param klazz           The Java class type
      *
-     * @return If the type was registered with the virtual machine
+     * @return The created type object
      *
      * @throws IllegalArgumentException Any checked exception
      */
-    public boolean defineJType(String handleTypeName, String superHandleTypeName, Class<?> klazz);
+    public VMType defineJType(final VMClosure definer, String handleTypeName, VMType superHandleType, Class<?> klazz) throws VMException;
 
     /**
      * Define a callable native function for this VM instance which is of the {@link BaseVMJFunctionImpl} type; the target function
@@ -94,6 +102,39 @@ public interface LogicVM {
     public boolean defineJFunc(String funcName, VMJFunction impl);
 
     /**
+     * Define a native class-less type for this VM instance which has the specified friendly name; the type-name specified shall implicitly
+     * extend the VM 'handle' type.
+     *
+     * @param definer  The closure object which defines the type
+     * @param typeName The type-name
+     *
+     * @return The created type object
+     */
+    public VMType defineType(final VMClosure definer, String typeName) throws VMException;
+
+    /**
+     * Define a native class-less type for this VM instance which has the specified friendly name; the type-name specified shall extend the
+     * previously defined type-name.
+     *
+     * @param definer   The closure object which defines the type
+     * @param typeName  The type-name
+     * @param superType The super-type
+     *
+     * @return The created type object
+     */
+    public VMType defineType(final VMClosure definer, String typeName, VMType superType) throws VMException;
+
+    /**
+     * Get a type-object for the type-name provided.
+     *
+     * @param definer  The closure object which defines the type
+     * @param typeName The type-name
+     *
+     * @return The type object, or <code>null</code> if the type does not exist
+     */
+    public VMType getType(final VMClosure definer, String typeName);
+
+    /**
      * <p>
      * Get the VM type-name for a Class provided.</p>
      *
@@ -105,22 +146,15 @@ public interface LogicVM {
      * <li>returns <code>handle</code> for all unknown Java types.</li>
      * </ul>
      *
-     * @param klazz The class to get the type-name for
+     * @param definer The defining closure
+     * @param klazz   The class to get the type-name for
      *
      * @return The type name, one of <code>nothing</code>, <code>code</code>, <code>boolean</code>, <code>integer</code>, <code>real</code>,
      *         <code>string</code>, a registered type-name extending <code>handle</code> or <code>handle</code>.
      */
-    public String getJTypeName(Class<?> klazz);
+    public VMType getJType(final VMClosure definer, Class<?> klazz);
 
-    /**
-     * Return if the Java type specified is an instance of (or assignable to) the type-name provided.
-     *
-     * @param klazz          The Java class
-     * @param handleTypeName The name of the VM type
-     *
-     * @return If the Java class is an instance of the VM type, either by type-widening or by direct equality
-     */
-    public boolean isJType(Class<?> klazz, String handleTypeName);
+    public boolean canCastToType(final VMType destType, final VMType srcType) throws VMException;
 
     /**
      * Get a pointer reference to a function defined in the bytecode associated with a referent linker. The returned pointer can be used
@@ -157,6 +191,8 @@ public interface LogicVM {
     public VMInvokable invoke(VMDebugCallback debug, VMFunction function);
 
     public Object result(VMInvokable inst);
+
+    public Object[] resultArray(VMInvokable inst);
 
     public void reset(VMInvokable inst);
 

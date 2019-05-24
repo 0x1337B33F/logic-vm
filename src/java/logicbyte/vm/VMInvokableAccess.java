@@ -83,7 +83,7 @@ public interface VMInvokableAccess {
      *
      * @return The type number of the local
      */
-    public int getFunctionClosureLocalsType(int stackSlot, int closureSlot, int localNumber) throws IndexOutOfBoundsException;
+    public VMType getFunctionClosureLocalsType(int stackSlot, int closureSlot, int localNumber) throws IndexOutOfBoundsException;
 
     /**
      * @param stackSlot   The function call stack index

@@ -17,6 +17,7 @@ public interface VMJFunction {
      *
      * @param vm        The virtual machine instance whom the executor belongs to
      * @param executor  The executor instance which is executing bytecode and the current function call
+     * @param caller    The caller function which invoked this native function
      * @param debug     The debugger of the call, or the debugger of the executor, or <code>null</code> if neither is assigned
      * @param arguments The arguments provided to the native function call, removed from the VM stack
      *
@@ -30,7 +31,7 @@ public interface VMJFunction {
      *                                   instance is not provided, a {@link InvocationTargetException} will be thrown.
      * @throws ThrowObjectException	     Thrown from user code to raise an exception into the machine that shall not be of the string type.
      */
-    public Object invoke(LogicVM vm, VMInvokable executor, VMDebugCallback debug, Object[] arguments) throws
+    public Object invoke(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] arguments) throws
 	    IllegalAccessException, IllegalArgumentException, InvocationTargetException, ThrowObjectException;
 
 }

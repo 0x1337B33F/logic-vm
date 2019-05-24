@@ -35,6 +35,6 @@ public interface VMFunctionPointer {
      *
      * @return The function argument type-names, or null if the function is no longer loaded.
      */
-    public String[] argumentTypesOfFunction();
+    public VMType[] argumentTypesOfFunction();
 
 }

@@ -9,6 +9,6 @@ import logicbyte.vm.LogicVM;
  */
 public interface LogicVMFactory {
 
-    public LogicVM create(DynamicLibraryFile loader, VMClosureFactory closureFactory) throws Exception;
+    public LogicVM create(DynamicLibraryFile loader, VMClosureFactory closureFactory, VMTypeFactory typeFactory) throws Exception;
 
 }
