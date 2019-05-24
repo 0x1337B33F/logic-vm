@@ -177,7 +177,7 @@ TOKEN : {
     <NULL : "null"> |
     <ARRAY : "array"> |
     <LOCAL : "local"> |
-    
+    <ANY: "any"> |
     
     /** The names of top-level declarations which are functions, native
 	functions or other block-yielding declaration(s) */
@@ -423,7 +423,7 @@ FunctionDecl NFUNC_DECL( Chunk c ) : {
 }{ 
     t0 = <NATIVE> <FUNCTION> { alloc = new FunctionDecl ( FunctionDecl.FunctionDeclType.NATIVE ); tag ( alloc, t0 ); }
     t0 = <IDENTIFIER> { alloc.name = t0.image; }
-    _FUNC_DECL_SIG ( c, alloc ) { return alloc; }
+    _FUNC_DECL_SIG ( c, alloc, true ) { return alloc; }
 } 
 
 /** UFUNC_DECL: a user-function declaration */
@@ -433,7 +433,7 @@ FunctionDecl  UFUNC_DECL( Chunk c ) : {
 }{ 
     t0 = <FUNCTION> { alloc = new FunctionDecl ( FunctionDecl.FunctionDeclType.USER ); tag ( alloc, t0 ); }
     t0 = <IDENTIFIER> { alloc.name = t0.image; }
-    _FUNC_DECL_SIG ( c, alloc )
+    _FUNC_DECL_SIG ( c, alloc, false )
 
     (
 	t0 = <LOCAL> 
@@ -474,44 +474,58 @@ FunctionDecl  UFUNC_DECL( Chunk c ) : {
     <ENDFUNCTION> { return alloc; }
 } 
 
-/** _FUNC_DECL_SIG: function declaration signature, TAKES [params|NOTHING] RETURNS [type|NOTHING] 
+/** _FUNC_DECL_SIG: function declaration signature, TAKES [params|NOTHING] RETURNS [type|type[]|NOTHING] 
 	mutates the functiondecl allocation provided 
 */
-void _FUNC_DECL_SIG(  Chunk c, FunctionDecl t ) : {
+void _FUNC_DECL_SIG(  Chunk c, FunctionDecl t, boolean any ) : {
     TypeDecl obj0 = null;
 }{ 
     <TAKES> ( 
-	_FUNC_DECL_PARAMS( c, t ) 
+	_FUNC_DECL_PARAMS( c, t, any ) 
     | 
 	<NOTHING>
     ) 
     <RETURNS> ( 
-	obj0 = TYPENAME( c ) { t.returnType = obj0; }
+	( 
+	    obj0 = TYPENAME( c ) { t.returnType = obj0; t.arrayReturnType = false; }
+	    ( "[]" { t.arrayReturnType = true; } )?
+	)
     | 
 	<NOTHING> { t.returnType = TypeDecl.TYPE_NOTHING; }
     )
 }
 
-/** _FUNC_DECL_PARAMS: function declaration parameters parser, [type] [varname][, [type] [varname][, [type][varname].... ]] */
-void _FUNC_DECL_PARAMS( Chunk c, FunctionDecl t ) : { 
-    TypeDecl obj0 = null; Token t0 = null;
+/** _FUNC_DECL_PARAMS: function declaration parameters parser, [type([]?)] [varname][, [type([]?)] [varname][, [type([]?)][varname].... ]] */
+void _FUNC_DECL_PARAMS( Chunk c, FunctionDecl t, boolean any ) : { 
+    TypeDecl obj0 = null; Token t0 = null; boolean b0 = false;
 }{
-    obj0 = TYPENAME( c )
+    (	
+	obj0 = TYPENAME( c )
+    |
+	t0 = <ANY> { 
+	    if ( ! any ) throw new ParseException( "`any` type-name not allowed here" );
+	    obj0 = TypeDecl.TYPE_ANY;
+	}
+    )
+
+    ( "[]" { b0 = true; } )?
     t0 = <IDENTIFIER> {
-		if ( t.paramNames == null ) t.paramNames = new LinkedList();
-		if ( t.paramTypes == null ) t.paramTypes = new LinkedList();
+		if ( t.paramNames == null )	t.paramNames = new LinkedList();
+		if ( t.paramTypes == null )	t.paramTypes = new LinkedList();
+		if ( t.paramArrays == null )	t.paramArrays = new LinkedList();
 		t.paramNames.add ( t0.image );
 		t.paramTypes.add ( obj0 );
+		t.paramArrays.add ( b0 );
     }
     
     (
-		","
+		"," { b0 = false; }
 		obj0 = TYPENAME( c )
+		( "[]" { b0 = true; } )?
 		t0 = <IDENTIFIER> {
-		    if ( t.paramNames == null ) t.paramNames = new LinkedList();
-		    if ( t.paramTypes == null ) t.paramTypes = new LinkedList();
 		    t.paramNames.add ( t0.image );
 		    t.paramTypes.add ( obj0 );
+		    t.paramArrays.add ( b0 );
 		}
     )*
 }
