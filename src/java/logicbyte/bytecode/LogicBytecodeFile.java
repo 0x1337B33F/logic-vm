@@ -136,6 +136,10 @@ public class LogicBytecodeFile {
 	 */
 	public static final int FUNC_MASK_HASLOCALS = 0b00000100;
 	/**
+	 * Mask used to indicate the function returns an array of the return type; otherwise, returns a value of the return type (literal).
+	 */
+	public static final int FUNC_MASK_HASRETARR = 0b00001000;
+	/**
 	 * Mask used to indicate the function has a debug data attachment.
 	 */
 	public static final int FUNC_MASK_HASDEBUG = 0b10000000;
@@ -146,6 +150,7 @@ public class LogicBytecodeFile {
 	public static final int FUNC_MASK = (FUNC_MASK_HASRET
 		| FUNC_MASK_HASARGS
 		| FUNC_MASK_HASLOCALS
+		| FUNC_MASK_HASRETARR
 		| FUNC_MASK_HASDEBUG);
 	/**
 	 * The unacceptable function mask bit(s).
@@ -158,7 +163,7 @@ public class LogicBytecodeFile {
 	final int fnType;
 
 	/**
-	 * The function mask, of ( FUNC_MASK_HASRET, FUNC_MASK_HASARGS, FUNC_MASK_HASLOCALS, FUNC_MASK_HASDEBUG )
+	 * The function mask, of ( FUNC_MASK_HASRET, FUNC_MASK_HASARGS, FUNC_MASK_HASLOCALS, FUNC_MASK_HASRETARR, FUNC_MASK_HASDEBUG )
 	 */
 	int fnMask;
 
@@ -181,6 +186,11 @@ public class LogicBytecodeFile {
 	 * The function argument type(s)
 	 */
 	int[] argTypes;
+
+	/**
+	 * The function argument array type(s)
+	 */
+	boolean[] argArrayTypes;
 
 	/**
 	 * The number of function locals
@@ -280,10 +290,24 @@ public class LogicBytecodeFile {
 	}
 
 	/**
-	 * @return If the function returns a value
+	 * @return If the function returns any value type
 	 */
 	public boolean hasreturn() {
 	    return maskflag(FUNC_MASK_HASRET);
+	}
+
+	/**
+	 * @return If the function returns an array of a value type
+	 */
+	public boolean hasarrayreturn() {
+	    return maskflag(FUNC_MASK_HASRETARR);
+	}
+
+	/**
+	 * @return If the function returns a literal of a value type
+	 */
+	public boolean hasliteralreturn() {
+	    return !maskflag(FUNC_MASK_HASRETARR);
 	}
 
 	/**
@@ -328,6 +352,15 @@ public class LogicBytecodeFile {
 	 */
 	public int argtype(int slot) {
 	    return this.argTypes[slot];
+	}
+
+	/**
+	 * @param slot The argument slot number
+	 *
+	 * @return If the argument is an array of the type; otherwise, a literal of the type
+	 */
+	public boolean argarray(int slot) {
+	    return this.argArrayTypes[slot];
 	}
 
 	/**
@@ -400,7 +433,8 @@ public class LogicBytecodeFile {
 
 	    if (this.numArgTypes > 0)
 		for (int i = 0, j = this.numArgTypes; i < j; i++)
-		    if (this.argTypes[i] != other.argTypes[i])
+		    if (this.argTypes[i] != other.argTypes[i]
+			    || this.argArrayTypes[i] != other.argArrayTypes[i])
 			return false;
 
 	    if (this.numLocalTypes > 0)
@@ -422,21 +456,27 @@ public class LogicBytecodeFile {
 
     public static class BytecodeFunctionDeclMutable extends BytecodeFunctionDecl {
 
+	boolean returnsArrayType;
+
 	public BytecodeFunctionDeclMutable(int fnMask, String fnName) {
 	    super(fnMask, fnName);
+	    this.returnsArrayType = ((fnMask & FUNC_MASK_HASRETARR) != 0);
 	}
 
 	public BytecodeFunctionDeclMutable(int fnMask, String fnName, FunctionOpcodeList ops) {
 	    super(fnMask, fnName, ops);
+	    this.returnsArrayType = ((fnMask & FUNC_MASK_HASRETARR) != 0);
 	}
 
 	/**
 	 * Set the function's arguments.
 	 *
-	 * @param table The list of argument type-number(s), or null if the function does not accept arguments.
+	 * @param table  The list of argument type-number(s), or null if the function does not accept arguments.
+	 * @param arrays The list of argument(s) that are array types or literal types of the type in the table for the slot.
 	 */
-	public void setargs(int[] table) {
+	public void setargs(int[] table, boolean[] arrays) {
 	    this.argTypes = table;
+	    this.argArrayTypes = arrays;
 	    this.numArgTypes = (this.argTypes != null) ? this.argTypes.length : 0;
 	    setmaskflag();
 	}
@@ -463,10 +503,12 @@ public class LogicBytecodeFile {
 	/**
 	 * Set the return type-number of the local, or <code>0</code> (meaning nothing).
 	 *
-	 * @param type The return type-number of the local, or <code>0</code> (meaning nothing).
+	 * @param type  The return type-number of the local, or <code>0</code> (meaning nothing).
+	 * @param array If the return type is an array type or a literal of the return value type.
 	 */
-	public void setreturn(int type) {
+	public void setreturn(int type, boolean array) {
 	    this.returnType = type;
+	    this.returnsArrayType = array;
 	    setmaskflag();
 	}
 
@@ -488,6 +530,8 @@ public class LogicBytecodeFile {
 		newflag |= FUNC_MASK_HASARGS;
 	    if (this.returnType != 0)
 		newflag |= FUNC_MASK_HASRET;
+	    if ( this.returnsArrayType )
+		newflag |= FUNC_MASK_HASRETARR;
 	    if (this.debugInfo != null)
 		newflag |= FUNC_MASK_HASDEBUG;
 	    this.fnMask = newflag;
