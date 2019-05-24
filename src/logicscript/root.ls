@@ -37,6 +37,8 @@ native function		TypeOf		takes 	handle ptr							returns string
  * the handle is not known then only `handle` shall return true. */
 native function		InstanceOf	takes	handle ptr, string typename					returns boolean
 
+/** returns the size of an array (indices) of the value provided */
+native function		SizeOf		takes	any[] obj							returns integer
 
 
 
@@ -247,6 +249,7 @@ exports
     function
 	    TypeOf,		/* obj_gettype ( ptr ) */
 	    InstanceOf,		/* obj_instanceof ( ptr, type ) */
+	    SizeOf,		/* obj_array_sizeof ( any ptr ) */
 	    PrintConsole,	/* print_console ( str ) */
 	    PrintError		/* print_error ( str ) */
     as		root.types
