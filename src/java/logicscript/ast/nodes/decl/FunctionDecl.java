@@ -67,9 +67,19 @@ public class FunctionDecl extends Decl implements Visitable {
     public List<TypeDecl> paramTypes;
 
     /**
+     * The list of parameter types which are array types, or null if no params
+     */
+    public List<Boolean> paramArrays;
+
+    /**
      * The return type or <code>nothing</code>
      */
     public TypeDecl returnType;
+
+    /**
+     * If the return type is an array of the type
+     */
+    public boolean arrayReturnType;
 
     /**
      * The list of local variables, if defined (&amp; type == USER)

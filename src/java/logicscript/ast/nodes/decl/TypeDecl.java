@@ -16,6 +16,8 @@ public class TypeDecl extends Decl {
     public static final TypeDecl TYPE_NOTHING = new TypeDecl(TypeDeclType.SYSTEM_TYPE, "nothing");
     public static final TypeDecl TYPE_NULL = new TypeDecl(TypeDeclType.SYSTEM_TYPE, "null");
 
+    public static final TypeDecl TYPE_ANY = new TypeDecl(TypeDeclType.SYSTEM_TYPE, "any");
+
     public static enum TypeDeclType {
 
 	/**
