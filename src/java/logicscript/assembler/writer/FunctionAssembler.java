@@ -61,6 +61,7 @@ import logicscript.ast.nodes.stmt.ef.FunctionCallVarStatement;
 import logicscript.ast.nodes.stmt.ef.SetArrayVariableStatement;
 import logicscript.ast.nodes.stmt.ef.SetVariableStatement;
 import logictype.BiDiMap;
+import logictype.Log;
 import logictype.Pair;
 import logictype.Tuple;
 
@@ -362,6 +363,8 @@ public class FunctionAssembler {
 
 	List<FunctionBytecodeTransformer> m_transformers = new LinkedList<>();
 
+	Log m_logger;
+
 	public FunctionAssemblyGeneratorMachine() {
 	    this.m_generatedObjectList = new LinkedList<>();
 	}
@@ -386,6 +389,11 @@ public class FunctionAssembler {
 
 	FunctionAssemblyGeneratorMachine addTransformer(FunctionBytecodeTransformer t) {
 	    this.m_transformers.add(t);
+	    return this;
+	}
+
+	FunctionAssemblyGeneratorMachine setLog(Log l) {
+	    this.m_logger = l;
 	    return this;
 	}
 
@@ -432,6 +440,7 @@ public class FunctionAssembler {
 		throw new IllegalStateException("already assembling");
 	    if (m_hasAssembled)
 		throw new IllegalStateException("already assembled");
+	    m_logger.trace("initializing, %s mode", (fnIsNative) ? "native" : "real");
 	    m_isAssembling = true;
 	    m_isNativeFunction = fnIsNative;
 	}
@@ -464,6 +473,7 @@ public class FunctionAssembler {
 	    if (m_hasAssembled)
 		throw new IllegalStateException("already assembled");
 
+	    m_logger.trace("assembling function `%s`", function.name);
 	    m_generatingFunctionObj = new BytecodeFunctionDeclMutable(
 		    ((m_isNativeFunction) ? BytecodeFunctionDecl.FUNC_TYPE_NATIVE : BytecodeFunctionDecl.FUNC_TYPE_USER),
 		    function.name);
@@ -484,31 +494,45 @@ public class FunctionAssembler {
 			throw new FunctionAssemblySourceException(declaringChunk, function,
 				"incorrect number of function parameter name(s) & type(s)");
 
+		    m_logger.trace("assembling function parameters: %s parameters", function.paramTypes.size());
+
 		    Iterator< String> itx = function.paramNames.iterator();
 		    Iterator< TypeDecl> itx1 = function.paramTypes.iterator();
+		    Iterator< Boolean> itx2 = function.paramArrays.iterator();
+
 		    int[] paramTypeNumberTable = new int[ function.paramTypes.size() ];
+		    boolean[] paramArrayTable = new boolean[ function.paramTypes.size() ];
 		    int i = 0;
-		    while (itx.hasNext() && itx1.hasNext()) {
+		    while (itx.hasNext() && itx1.hasNext() && itx2.hasNext()) {
 			String nameOfParam = itx.next();
 			if (!m_generatedFunctionClosure.checkname_distinct(nameOfParam))
 			    throw new IllegalStateException("duplicate parameter name");
 			TypeDecl typeOfParam = itx1.next();
 			int numberOfTypeOfParam = typeMachine.getTypeNumber(typeOfParam);
+			boolean arrayTypeOfParam = itx2.next();
+
 			int ptr = m_generatedFunctionClosure.count;
 			if (ptr >= s_maxFuncClosureVars)
 			    throw new FunctionAssemblySourceException(declaringChunk, function, "too many parameters");
 			++m_generatedFunctionClosure.count; // lock slot ref
 			m_generatedFunctionClosure.names[ptr] = nameOfParam;
 			m_generatedFunctionClosure.types[ptr] = numberOfTypeOfParam;
-			paramTypeNumberTable[i++] = numberOfTypeOfParam;
+			m_generatedFunctionClosure.arrays[ptr] = arrayTypeOfParam;
+
+			ptr = i++;
+			paramTypeNumberTable[ptr] = numberOfTypeOfParam;
+			paramArrayTable[ptr] = arrayTypeOfParam;
+
+			m_logger.trace("assembling function parameter %s: name `%s`, type %s, %s", ptr, nameOfParam, numberOfTypeOfParam,
+				(arrayTypeOfParam) ? "array" : "literal");
 		    }
-		    m_generatingFunctionObj.setargs(paramTypeNumberTable);
+		    m_generatingFunctionObj.setargs(paramTypeNumberTable, paramArrayTable);
 		}
 
 	    // The local var(s) become the subsequent closure value(s):
 	    if (function.lvars != null && !function.lvars.isEmpty()) {
+		m_logger.trace("assembling function locals: %s locals", function.lvars.size());
 		Iterator<FunctionLVarDecl> itx = function.lvars.iterator();
-
 		int[] localTypeNumberTable = new int[ function.lvars.size() ];
 		boolean[] localArrayTypeTable = new boolean[ function.lvars.size() ];
 		int i = 0;
@@ -526,26 +550,34 @@ public class FunctionAssembler {
 		    m_generatedFunctionClosure.arrays[ptr] = decl.isArrayType;
 		    localTypeNumberTable[i] = numberOfTypeOfLocal;
 		    localArrayTypeTable[i++] = decl.isArrayType;
+		    m_logger.trace("assembling function local %s: name `%s`, type %s, %s", ptr, decl.nameOfLocalVar, numberOfTypeOfLocal,
+			    (decl.isArrayType) ? "array" : "literal");
 
-		    if (decl.initialRhs != null)
+		    if (decl.initialRhs != null) {
+			m_logger.trace("assembling function local %s initializer", ptr);
 			if (decl.isArrayType) {
+			    m_logger.trace("assembling function local %s array initializer", ptr);
 			    emitOpcodesExpression(typeMachine, linker, declaringChunk, function, function.block, decl.initialRhs);
 			    output(new OpcodeControlBitmask(Opcodes.NEWARRAY, newlist(numberOfTypeOfLocal, ptr)));
 			} else {
+			    m_logger.trace("assembling function local %s literal initializer", ptr);
 			    emitOpcodesExpression(typeMachine, linker, declaringChunk, function, function.block, decl.initialRhs);
 			    output(new OpcodeControlBitmask(Opcodes.SETLOCAL, newlist(ptr)));
 			}
+		    }
 		}
 
 		m_generatingFunctionObj.setlocals(localTypeNumberTable, localArrayTypeTable);
 	    }
 
 	    if (function.returnType != null)
-		m_generatingFunctionObj.setreturn(typeMachine.getTypeNumber(function.returnType));
+		m_generatingFunctionObj.setreturn(typeMachine.getTypeNumber(function.returnType), function.arrayReturnType);
 
 	    if (m_generateDebugSymbols) {
+		m_logger.trace("assembling function debugging data");
 		m_generatingFunctionDebugObj = new DebugSegment();
 		if (function.paramNames != null && !function.paramNames.isEmpty()) {
+		    m_logger.trace("assembling function debugging parameter name table");
 		    String[] paramNameTable = new String[ function.paramNames.size() ];
 		    for (int i = 0, j = paramNameTable.length; i < j; i++)
 			paramNameTable[i] = function.paramNames.get(i);
@@ -553,6 +585,7 @@ public class FunctionAssembler {
 		}
 
 		if (function.lvars != null && !function.lvars.isEmpty()) {
+		    m_logger.trace("assembling function debugging local name table");
 		    String[] lvarsNameTable = new String[ function.lvars.size() ];
 		    for (int i = 0, j = lvarsNameTable.length; i < j; i++)
 			lvarsNameTable[i] = function.lvars.get(i).nameOfLocalVar;
@@ -562,18 +595,22 @@ public class FunctionAssembler {
 	    }
 
 	    if (!m_isNativeFunction) {
+		m_logger.trace("assembling function opcodes");
 
 		if (!emitOpcodes(typeMachine, linker, declaringChunk, function)) {
 		    m_hasAssembled = false;
+		    m_logger.err("opcodes not assembled for function");
 		    throw new IllegalStateException("emit: did not emitOpcodes");
 		}
 
 		if (m_generatedObjectList.isEmpty()) {
 		    m_hasAssembled = false;
+		    m_logger.err("opcode list empty");
 		    throw new IllegalStateException("emit: zero opcodes in function body not allowed");
 		}
 
 		if (!m_transformers.isEmpty()) {
+		    m_logger.trace("running bytecode transformers");
 		    Iterator<FunctionBytecodeTransformer> itx = m_transformers.iterator();
 		    while (itx.hasNext()) {
 			FunctionBytecodeTransformer transformer = itx.next();
@@ -583,12 +620,14 @@ public class FunctionAssembler {
 				m_generatedObjectList
 			);
 		    }
+		    m_logger.trace("done running bytecode transformers");
 		}
 
 		List<Tuple< Integer, Opcode, DebugLocationSegment>> ops = new LinkedList<>();
 		Map<String, Integer> labelTable = new HashMap<>();
 
 		{
+		    m_logger.trace("computing label location table");
 		    Iterator< Pair< Object, DebugLocationSegment>> itx = m_generatedObjectList.iterator();
 		    int i = 0;
 		    while (itx.hasNext()) {
@@ -604,8 +643,8 @@ public class FunctionAssembler {
 		    }
 		}
 
+		m_logger.trace("flattening opcode label references");
 		FunctionOpcodeList generatingFunctionOpcodeListPtr = m_generatingFunctionObj.opcodes();
-
 		Iterator< Tuple<Integer, Opcode, DebugLocationSegment>> itx1 = ops.iterator();
 		while (itx1.hasNext()) {
 		    Tuple<Integer, Opcode, DebugLocationSegment> val = itx1.next();
@@ -626,6 +665,7 @@ public class FunctionAssembler {
 		    }
 		}
 
+		m_logger.trace("updating closure exit addresses");
 		Stack<Integer> closureScopeStack = new Stack<>();
 		for (int i = ops.size() - 1; i >= 0; i--) {
 		    Tuple< Integer, Opcode, DebugLocationSegment> op = ops.get(i);
@@ -640,11 +680,13 @@ public class FunctionAssembler {
 			));
 		}
 
+		m_logger.trace("moving finalized opcodes to output tape");
 		itx1 = ops.iterator();
 		while (itx1.hasNext())
 		    generatingFunctionOpcodeListPtr.add(itx1.next().b());
 
 		if (m_generateDebugSymbols) {
+		    m_logger.trace("generating debug address location table");
 		    List<Integer> addrList = new LinkedList<>();
 		    List<DebugLocationSegment> locList = new LinkedList<>();
 
@@ -684,15 +726,18 @@ public class FunctionAssembler {
 
 	boolean emitOpcodes(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl function)
 		throws IllegalStateException, InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
+	    m_logger.trace("emitting block opcodes");
 	    return emitOpcodesBlock(typeMachine, linker, declaringChunk, function, function.block);
 	}
 
 	boolean emitOpcodesBlock(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl fnDecl, Block block)
 		throws IllegalStateException, InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	    if (block.isEmpty()) {
+		m_logger.trace("emitting empty block");
 		output(Opcodes.NOP);
 		return true;
 	    } else {
+		m_logger.trace("emitting opcodes for block");
 		Iterator<Statement> itx = block.iterator();
 		while (itx.hasNext()) {
 		    Statement stmt = itx.next();
@@ -708,6 +753,7 @@ public class FunctionAssembler {
 
 	boolean emitOpcodesStatement(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl fnDecl,
 		Block inBlock, Statement s) throws IllegalStateException, InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
+	    m_logger.trace("emitting opcodes for statement %s", s.getClass().getName());
 	    if (s instanceof ControlFlowStatement) {
 		if (s instanceof IfStatement) {
 		    final String exitifl = label("IF_ENDIF");
@@ -1082,7 +1128,7 @@ public class FunctionAssembler {
 	 */
 	boolean emitOpcodesExpression(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl fnDecl,
 		Block inBlock, Expression e) throws IllegalStateException, InstantiationException, FunctionAssemblySourceException {
-
+	    m_logger.trace("emitting opcodes for expression %s", e.getClass().getName());
 	    if (e instanceof ParenExpression)
 		return emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, ((ParenExpression) e).expressionInParenth);
 	    else if (e instanceof BinaryExpression) {
@@ -1228,6 +1274,7 @@ public class FunctionAssembler {
 
 	boolean emitOpcodesLiteral(TypeAssembler typeMachine, Chunk declChunk, FunctionDecl fnDecl, Block inBlock, LiteralValue lv)
 		throws IllegalStateException, InstantiationException, FunctionAssemblySourceException {
+	    m_logger.trace("emitting opcodes for literal type %s", lv.typeOfValue.typeName);
 	    if (lv.typeOfValue == TypeDecl.TYPE_BOOLEAN)
 		output(new OpcodeControlBitmask(Opcodes.PUSHB, newlist(lv == LiteralValue.VALUE_TRUE)), lv.location);
 	    else if (lv.typeOfValue == TypeDecl.TYPE_INTEGER)
@@ -1273,6 +1320,7 @@ public class FunctionAssembler {
 	    gc.arrays = new boolean[ s_maxFuncSubClosureVars ];
 
 	    m_generatedClosures.push(gc);
+	    m_logger.trace("creating new closure: label `%s`, start: %s", gc.label, gc.start);
 	    output(Opcodes.INCLOSURE, location);
 	}
 
@@ -1312,6 +1360,7 @@ public class FunctionAssembler {
 	    closure.types[ptr] = numberOfTypeOfLocal;
 	    closure.arrays[ptr] = false;
 
+	    m_logger.trace("creating new closure local: name `%s`, type %s, slot %s", nameOfLocal, typeOfLocal, ptr);
 	    output(new OpcodeControlBitmask(Opcodes.NEWUPVAR, newlist(numberOfTypeOfLocal, closure.start + ptr)), location);
 	    return closure.start + ptr;
 	}
@@ -1359,6 +1408,7 @@ public class FunctionAssembler {
 	    closure.arrays[ptr] = true;
 
 	    // generate assembly object:
+	    m_logger.trace("creating new closure local array: name `%s`, type %s", nameOfLocal, typeOfLocal);
 	    emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, dimExpr);
 	    output(new OpcodeControlBitmask(Opcodes.NEWUPVAR, Opcodes.BITMASK_NEWUPVAR_ARRAY, newlist(ptr, numberOfTypeOfLocal)), location);
 	    return ptr;
@@ -1414,11 +1464,13 @@ public class FunctionAssembler {
 	 * @throws logicscript.assembler.writer.FunctionAssembler.FunctionAssemblySourceException
 	 */
 	void endclosure(Location location) throws IllegalStateException, FunctionAssemblySourceException {
+	    GeneratorClosure g = null;
 	    try {
-		m_generatedClosures.pop();
+		g = m_generatedClosures.pop();
 	    } catch (EmptyStackException ese) {
 		throw new IllegalStateException("endclosure: cannot endclosure when not inclosure scope");
 	    }
+	    m_logger.trace("exiting closure: label `%s`, start: %s, size: %s", g.label, g.start, g.count);
 	    output(Opcodes.ENDCLOSURE, location);
 	}
 
@@ -1562,7 +1614,7 @@ public class FunctionAssembler {
     /**
      * If the function assembler should generate debugging symbols or not.
      */
-    volatile boolean m_generateDebugSymbols = false;
+    volatile boolean generateDebugSymbols = false;
 
     public FunctionAssembler() {
 	reset();
@@ -1581,7 +1633,7 @@ public class FunctionAssembler {
      * @return The function assembler instance.
      */
     public FunctionAssembler setShouldGenerateDebugSymbols(boolean b) {
-	this.m_generateDebugSymbols = b;
+	this.generateDebugSymbols = b;
 	return this;
     }
 
@@ -1601,6 +1653,7 @@ public class FunctionAssembler {
      * @param typeCompilerMachine The type compiler machine, for type compilation referencing
      * @param declaringChunk      The code chunk which declares the function
      * @param funcDecl            The function declaration object
+     * @param log                 The logging implementation
      *
      * @throws java.lang.InstantiationException
      * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
@@ -1608,10 +1661,11 @@ public class FunctionAssembler {
      * @throws FunctionAssemblySourceException                                         Any compilation-level exception
      */
     public void assembleUserFunction(LinkerObjectFile dstLinkObj, LogicBytecodeFile dstFileObj, TypeAssembler typeCompilerMachine,
-	    Chunk declaringChunk, FunctionDecl funcDecl) throws InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
+	    Chunk declaringChunk, FunctionDecl funcDecl, Log log) throws InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	if (fnGenerator.
 		reset().
-		initShouldDebug(m_generateDebugSymbols).
+		setLog(log).
+		initShouldDebug(generateDebugSymbols).
 		initUserFn().
 		emit(typeCompilerMachine, dstLinkObj, declaringChunk, funcDecl)) {
 	    fnGenerator.stream(dstFileObj);
@@ -1628,6 +1682,7 @@ public class FunctionAssembler {
      * @param typeCompilerMachine The type compiler machine, for type compilation referencing
      * @param declaringChunk      The code chunk which declares the function
      * @param funcDecl            The native function declaration object
+     * @param log                 The logging implementation
      *
      * @throws java.lang.InstantiationException
      * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
@@ -1635,10 +1690,11 @@ public class FunctionAssembler {
      * @throws FunctionAssemblySourceException                                         Any compilation-level exception
      */
     public void assembleNativeFunction(LinkerObjectFile dstLinkObj, LogicBytecodeFile dstFileObj, TypeAssembler typeCompilerMachine,
-	    Chunk declaringChunk, FunctionDecl funcDecl) throws InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
+	    Chunk declaringChunk, FunctionDecl funcDecl, Log log) throws InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
 	if (fnGenerator.
 		reset().
-		initShouldDebug(m_generateDebugSymbols).
+		setLog(log).
+		initShouldDebug(generateDebugSymbols).
 		initNativeFn().
 		emit(typeCompilerMachine, dstLinkObj, declaringChunk, funcDecl)) {
 	    fnGenerator.stream(dstFileObj);
@@ -1655,11 +1711,13 @@ public class FunctionAssembler {
      * @param declaringChunk      The code chunk which declares the export statement
      * @param exportBlock         The block within the export statement
      * @param referentFuncs       The referent function list
+     * @param log                 The logging implementation
      *
      * @throws FunctionAssemblySourceException
      */
     public void assembleFunctionExport(LinkerObjectFile dstLinkObj, TypeAssembler typeCompilerMachine, Chunk declaringChunk,
-	    LibraryBlock exportBlock, LibraryReference referentFuncs) throws FunctionAssemblySourceException {
+	    LibraryBlock exportBlock, LibraryReference referentFuncs, Log log) throws FunctionAssemblySourceException {
+	log.trace("assembling function export: symbol `%s`", exportBlock.symbol);
 	ExportsEntry asCompiled = new ExportsEntry();
 	asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_EXPORTS_FUNCTION;
 	asCompiled.name = exportBlock.symbol;
@@ -1675,17 +1733,20 @@ public class FunctionAssembler {
      * @param declaringChunk      The code chunk which declares the export statement
      * @param importBlock         The block within the import statement
      * @param referentFuncs       The referent function list
+     * @param log                 The logging implementation
      *
      * @throws FunctionAssemblySourceException
      */
     public void assembleFunctionImport(LinkerObjectFile dstLinkObj, TypeAssembler typeCompilerMachine, Chunk declaringChunk,
-	    LibraryBlock importBlock, LibraryReference referentFuncs) throws FunctionAssemblySourceException {
+	    LibraryBlock importBlock, LibraryReference referentFuncs, Log log) throws FunctionAssemblySourceException {
 	if (referentFuncs.isWildcard) {
+	    log.trace("assembling function import: symbol `%s`, wildcard import", importBlock.symbol);
 	    ImportsEntry asCompiled = new ImportsEntry();
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_IMPORTS_FUNCTION | LinkerObjectFile.TYPEFLAGS_IMPORTS_WILDCARD;
 	    asCompiled.name = importBlock.symbol;
 	    dstLinkObj.importsTable.add(asCompiled);
 	} else {
+	    log.trace("assembling function import: symbol `%s`, named import", importBlock.symbol);
 	    ImportsEntry asCompiled = new ImportsEntry();
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_IMPORTS_FUNCTION;
 	    asCompiled.name = importBlock.symbol;

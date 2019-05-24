@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.util.LinkedList;
 import java.util.List;
@@ -18,6 +19,9 @@ import logicbyte.bytecode.validate.LinkerValidationException;
 import logicscript.assembler.writer.ChunkAssembler;
 import logicscript.ast.Chunk;
 import logicscript.parser.LogicScriptParser;
+import logictype.Log.BaseLog;
+import logictype.Log.Level;
+import logictype.Log.LogReceiverFormatted;
 
 /**
  *
@@ -102,6 +106,34 @@ public class Compiler {
 	    shouldDumpGeneratedBytecode = true;
 	}
 
+	if (options.contains("+LOG")) {
+	    System.out.println("Logging is enabled. Remove `+LOG` to disable.");
+	    final BaseLog logger = new BaseLog();
+	    logger.addReceiver(new LogReceiverFormatted() {
+		@Override
+		public void tailcall(Level l, StackTraceElement[] stack, String message, Throwable cause, Object... params) {
+		    PrintStream output = null;
+		    switch (l) {
+			case TRACE:
+			case DEBUG:
+			case INFO:
+			    output = System.out;
+			    break;
+			case WARN:
+			case ERR:
+			    output = System.err;
+			    break;
+		    }
+		    StackTraceElement caller = stack[0];
+		    output.println(String.format("[%s][%s#%s] %s", l.name(), caller.getClassName(), caller.getMethodName(), message));
+		    if (cause != null)
+			cause.printStackTrace(output);
+		}
+
+	    });
+	    compiler.setLog(logger);
+	}
+
 	LinkerObjectOutputStream linkerWriterObj = null;
 	LogicBytecodeOutputStream bytecodeWriterObj = null;
 
@@ -137,7 +169,7 @@ public class Compiler {
 		try {
 		    dstLinkerObj = new LinkerObjectFile(baseName);
 		    dstBytecodeObj = new LogicBytecodeFile(baseName);
-		    compiler.assembleChunk(dstChunkObj, dstLinkerObj, dstBytecodeObj);
+		    compiler.assembleChunk(dstChunkObj, dstLinkerObj, dstBytecodeObj, null);
 		} catch (LinkerValidationException e) {
 		    System.err.println(String.format("Error when compiling file `%s`:", baseName));
 		    e.printStackTrace(System.err);

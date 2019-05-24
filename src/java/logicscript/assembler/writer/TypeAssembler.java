@@ -13,6 +13,7 @@ import logicscript.ast.nodes.decl.TypeDecl.TypeDeclType;
 import logicscript.ast.nodes.importexport.LibraryBlock;
 import logicscript.ast.nodes.importexport.LibraryReference;
 import logictype.BiDiMap;
+import logictype.Log;
 
 /**
  * @author Lochie
@@ -65,16 +66,18 @@ public class TypeAssembler {
 	this.assembledTypeTableNameIndex.clear();
     }
 
-    public void assembleTypeDecl(LinkerObjectFile dstLinkObj, Chunk c, TypeDecl typeDecl) throws TypeAssemblerGeneratorException {
+    public void assembleTypeDecl(LinkerObjectFile dstLinkObj, Chunk c, TypeDecl typeDecl, Log log) throws TypeAssemblerGeneratorException {
 	if (assembledTypeTableNameIndex.containsKey(typeDecl.typeName))
 	    throw new TypeAssemblerGeneratorException(typeDecl.typeName, "duplicate type-name");
 	if (typeDecl.type == TypeDeclType.EXTENDS_HANDLE) {
+	    log.trace("compiling type-declaration: type `%s`, handle type", typeDecl.typeName);
 	    TypesEntry asCompiled = new TypesEntry();
 	    asCompiled.name = typeDecl.typeName;
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_TYPES_HANDLE;
 	    internalAssembleType(typeDecl, asCompiled);
 	    dstLinkObj.typesTable.add(asCompiled);
 	} else if (typeDecl.type == TypeDeclType.EXTENDS_IMPORTS || typeDecl.type == TypeDeclType.EXTENDS_TYPENAME) {
+	    log.trace("compiling type-declaration: type `%s`, supertype `%s`", typeDecl.typeName, typeDecl.ancestorTypeName);
 	    TypesEntry asCompiled = new TypesEntry();
 	    asCompiled.name = typeDecl.typeName;
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_TYPES_USER;
@@ -85,11 +88,12 @@ public class TypeAssembler {
 	    throw new TypeAssemblerGeneratorException(typeDecl.typeName, String.format("unsupported type type %s", typeDecl.type.name()));
     }
 
-    public void assembleTypeImport(LinkerObjectFile dstLinkObj, Chunk c, LibraryBlock collection, LibraryReference referent) throws TypeAssemblerGeneratorException {
+    public void assembleTypeImport(LinkerObjectFile dstLinkObj, Chunk c, LibraryBlock collection, LibraryReference referent, Log log) throws TypeAssemblerGeneratorException {
 	if (referent.isWildcard)
 	    // TODO: this is technically possible, but for now take the easier route:
 	    throw new TypeAssemblerGeneratorException(null, "Cannot import types by wildcard operator");
 	else {
+	    log.trace("compiling type import entry: symbol `%s`", collection.symbol);
 	    ImportsEntry asCompiled = new ImportsEntry();
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_IMPORTS_TYPE;
 	    asCompiled.name = collection.symbol;
@@ -106,6 +110,7 @@ public class TypeAssembler {
 		if (assembledTypeTableNameIndex.containsKey(name))
 		    throw new TypeAssemblerGeneratorException(name, "duplicate type-name");
 		int index = internalNextTypeSlot();
+		log.trace("compiling type import entry: symbol `%s`, slot %s, type `%s`", collection.symbol, index, name);
 		labelList.add(name);
 		slotList.add(index);
 		assembledTypeTable.put(index, placeholderType);
@@ -114,13 +119,14 @@ public class TypeAssembler {
 	}
     }
 
-    public void assembleTypeExport(LinkerObjectFile dstLinkObj, Chunk c, LibraryBlock collection, LibraryReference referent) throws TypeAssemblerLookupException, TypeAssemblerGeneratorException {
+    public void assembleTypeExport(LinkerObjectFile dstLinkObj, Chunk c, LibraryBlock collection, LibraryReference referent, Log log) throws TypeAssemblerLookupException, TypeAssemblerGeneratorException {
 	if (referent.isWildcard) {
 	    ExportsEntry asCompiled = new ExportsEntry();
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_EXPORTS_TYPE;
 	    asCompiled.name = collection.symbol;
 	    dstLinkObj.exportsTable.add(asCompiled);
 	} else {
+	    log.trace("compiling type export entry: symbol `%s`", collection.symbol);
 	    ExportsEntry asCompiled = new ExportsEntry();
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_EXPORTS_TYPE;
 	    asCompiled.name = collection.symbol;
@@ -134,6 +140,7 @@ public class TypeAssembler {
 		    throw new TypeAssemblerGeneratorException(name, "missing typetoken placeholder");
 		if (getTypeNumber(placeholderType) == 0)
 		    throw new TypeAssemblerLookupException(name, "type not assembled");
+		log.trace("compiling type export entry: symbol `%s`, type `%s`", collection.symbol, name);
 		labelList.add(name);
 	    }
 	    dstLinkObj.exportsTable.add(asCompiled);
@@ -160,6 +167,8 @@ public class TypeAssembler {
     }
 
     public int getTypeNumber(TypeDecl compiledType) throws TypeAssemblerLookupException {
+	if ( compiledType == TypeDecl.TYPE_ANY )
+	    return -1;
 	if (compiledType == TypeDecl.TYPE_NOTHING)
 	    return 0;
 	if (compiledType == TypeDecl.TYPE_HANDLE)

@@ -11,6 +11,7 @@ import logicscript.ast.nodes.globals.GlobalsVarDecl;
 import logicscript.ast.nodes.importexport.LibraryBlock;
 import logicscript.ast.nodes.importexport.LibraryReference;
 import logictype.BiDiMap;
+import logictype.Log;
 
 /**
  *
@@ -63,8 +64,8 @@ public class GlobalsAssembler {
     }
 
     public void assembleGlobalDeclaration(LinkerObjectFile dstLinkObj, TypeAssembler typeCompilerMachine, Chunk declaringChunk,
-	    GlobalsBlock declaringBlock, GlobalsVarDecl decl) throws TypeAssemblerLookupException, GlobalsAssemblerGeneratorException {
-
+	    GlobalsBlock declaringBlock, GlobalsVarDecl decl, Log log) throws TypeAssemblerLookupException, GlobalsAssemblerGeneratorException {
+	log.trace("assembling global declaration: global `%s`, %s", decl.nameOfGlobalVar, (decl.isArrayType) ? "array" : "literal");
 	GlobalsEntry asCompiled = new GlobalsEntry();
 	asCompiled.name = decl.nameOfGlobalVar;
 	asCompiled.type = typeCompilerMachine.getTypeNumber(decl.valueType);
@@ -76,14 +77,15 @@ public class GlobalsAssembler {
     }
 
     public void assembleGlobalImport(LinkerObjectFile dstLinkObj, TypeAssembler typeCompilerMachine, Chunk declaringChunk,
-	    LibraryBlock importBlock, LibraryReference referentGlobals) throws GlobalsAssemblerGeneratorException {
-
+	    LibraryBlock importBlock, LibraryReference referentGlobals, Log log) throws GlobalsAssemblerGeneratorException {
 	if (referentGlobals.isWildcard) {
+	    log.trace("assembling global import declaration: symbol `%s`, wildcard import", importBlock.symbol);
 	    ImportsEntry asCompiled = new ImportsEntry();
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_IMPORTS_GLOBAL | LinkerObjectFile.TYPEFLAGS_IMPORTS_WILDCARD;
 	    asCompiled.name = importBlock.symbol;
 	    dstLinkObj.importsTable.add(asCompiled);
 	} else {
+	    log.trace("assembling global import declaration: symbol `%s`", importBlock.symbol);
 	    ImportsEntry asCompiled = new ImportsEntry();
 	    asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_IMPORTS_GLOBAL;
 	    asCompiled.name = importBlock.symbol;
@@ -93,7 +95,8 @@ public class GlobalsAssembler {
     }
 
     public void assembleGlobalExport(LinkerObjectFile dstLinkObj, TypeAssembler typeCompilerMachine, Chunk declaringChunk,
-	    LibraryBlock exportBlock, LibraryReference referentGlobals) throws GlobalsAssemblerGeneratorException {
+	    LibraryBlock exportBlock, LibraryReference referentGlobals, Log log) throws GlobalsAssemblerGeneratorException {
+	log.trace("assembling global export declaration: symbol `%s`", exportBlock.symbol);
 	ExportsEntry asCompiled = new ExportsEntry();
 	asCompiled.typeflags = LinkerObjectFile.TYPEFLAGS_EXPORTS_GLOBAL;
 	asCompiled.name = exportBlock.symbol;
