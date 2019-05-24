@@ -44,6 +44,13 @@ public class LogicBytecodeOutputStream extends NeutralEncoderOutputStream {
 	    writePackedInt(compiledFunction.numargs());
 	    for (int i = 0, j = compiledFunction.numargs(); i < j; i++)
 		writePackedInt(compiledFunction.argtype(i));
+	    
+	    int word = 0, count = compiledFunction.numargs();
+	    for (int i = 0; i < compiledFunction.numargs(); i += 8) {
+		for (int j = 0; j < 8; count--, j++)
+		    word = (word << 1) | ((count > 0 && compiledFunction.argarray(i + j)) ? 1 : 0);
+		destDataStreamRef.writeByte((byte) word);
+	    }
 	}
 
 	if (compiledFunction.haslocals()) {

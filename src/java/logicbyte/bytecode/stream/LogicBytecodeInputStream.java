@@ -61,13 +61,28 @@ public class LogicBytecodeInputStream extends NeutralDecoderInputStream {
 	BytecodeFunctionDeclMutable allocBytecodeFnDst = new BytecodeFunctionDeclMutable(typeflag, name, allocFnOpList);
 
 	if ((maskflag & BytecodeFunctionDecl.FUNC_MASK_HASRET) != 0)
-	    allocBytecodeFnDst.setreturn(readPackedInt());
+	    allocBytecodeFnDst.setreturn(readPackedInt(), (maskflag & BytecodeFunctionDecl.FUNC_MASK_HASRETARR) != 0);
 
 	if ((maskflag & BytecodeFunctionDecl.FUNC_MASK_HASARGS) != 0) {
-	    int[] argtable = new int[ readPackedInt() ];
+	    int numargs = readPackedInt();
+
+	    int[] argtable = new int[ numargs ];
 	    for (int i = 0, j = argtable.length; i < j; i++)
 		argtable[i] = readPackedInt();
-	    allocBytecodeFnDst.setargs(argtable);
+
+	    boolean[] argarrays = new boolean[ numargs ];
+	    int words = (int) Math.ceil(numargs / 8.0d);
+	    for (int i = 0; i < words; i++) {
+		byte word = srcDataStreamRef.readByte();
+		for (int j = 0; j < 8; j++) {
+		    int k = (i * 8) + j;
+		    if (k >= argarrays.length)
+			break;
+		    argarrays[k] = (word & (1 << (8 - j))) != 0;
+		}
+	    }
+
+	    allocBytecodeFnDst.setargs(argtable, argarrays);
 	}
 
 	if ((maskflag & BytecodeFunctionDecl.FUNC_MASK_HASLOCALS) != 0) {
