@@ -20,7 +20,6 @@ import logicbyte.vm.VMFunctionPointer;
 import logicbyte.vm.VMGlobalsTable.GlobalBox;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMJFunction;
-import logicbyte.vm.VMType;
 import logicbyte.vm.exception.DuplicateTypeNameException;
 import logicbyte.vm.exception.LinkerNotLoadedException;
 import logicbyte.vm.exception.NoSuchFunctionException;
@@ -32,6 +31,7 @@ import logictype.BiDiMap;
 import logictype.HashMapList;
 import logictype.Log;
 import logictype.Pair;
+import logicbyte.vm.VMType;
 
 /**
  * <p>
@@ -210,7 +210,7 @@ public class BaseLogicVMInstance implements LogicVM {
 	    } catch (VMException e) {
 		throw new VMException(this, "exception when defining required type reference for native type", e);
 	    }
-	BaseVMType asMutable = (BaseVMType) defn;
+	BaseVMUserType asMutable = (BaseVMUserType) defn;
 	asMutable.setKlazzType(this, klazz);
 	return asMutable;
     }
@@ -229,7 +229,7 @@ public class BaseLogicVMInstance implements LogicVM {
 	    throw new VMException(this, String.format("expected super-type `%s`, but got super-type `%s` from code declaration",
 		    superHandleType.name(), defn.supertype().name()));
 
-	BaseVMType asMutable = (BaseVMType) defn;
+	BaseVMUserType asMutable = (BaseVMUserType) defn;
 	asMutable.setKlazzType(this, klazz);
 	return asMutable;
     }
@@ -410,7 +410,7 @@ public class BaseLogicVMInstance implements LogicVM {
 	    return srcType != BaseVMPrimitiveType.TYPE_NOTHING;
 
 	if (dstType == BaseVMPrimitiveType.TYPE_HANDLE)
-	    return srcType == BaseVMPrimitiveType.TYPE_HANDLE || srcType instanceof BaseVMType;
+	    return srcType == BaseVMPrimitiveType.TYPE_HANDLE || srcType instanceof BaseVMUserType;
 
 	VMType uptype = srcType;
 	while (uptype != null && ((uptype = uptype.supertype()) != null))

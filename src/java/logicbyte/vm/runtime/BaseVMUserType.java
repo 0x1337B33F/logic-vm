@@ -2,14 +2,14 @@ package logicbyte.vm.runtime;
 
 import logicbyte.vm.LogicVM;
 import logicbyte.vm.VMClosure;
-import logicbyte.vm.VMType;
 import logicbyte.vm.exception.IllegalTypeMutationException;
+import logicbyte.vm.VMType;
 
 /**
  *
  * @author Lochie
  */
-public class BaseVMType implements VMType {
+public class BaseVMUserType implements VMType {
 
     private final VMClosure declaringClosure;
 
@@ -19,11 +19,11 @@ public class BaseVMType implements VMType {
 
     private Class<?> klazzOfType;
 
-    public BaseVMType(final VMClosure declaringClosure, final String nameOfType) {
+    public BaseVMUserType(final VMClosure declaringClosure, final String nameOfType) {
 	this(declaringClosure, nameOfType, null);
     }
 
-    public BaseVMType(final VMClosure declaringClosure, final String nameOfType, final VMType ancestorOfType) {
+    public BaseVMUserType(final VMClosure declaringClosure, final String nameOfType, final VMType ancestorOfType) {
 	this.declaringClosure = declaringClosure;
 	this.nameOfType = nameOfType;
 	this.ancestorOfType = ancestorOfType;

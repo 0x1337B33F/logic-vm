@@ -3,8 +3,8 @@ package logicbyte.vm.runtime;
 import java.util.HashMap;
 import java.util.LinkedList;
 import logicbyte.vm.VMClosure;
-import logicbyte.vm.VMType;
 import logicbyte.vm.VMTypeIndex;
+import logicbyte.vm.VMType;
 
 /**
  *

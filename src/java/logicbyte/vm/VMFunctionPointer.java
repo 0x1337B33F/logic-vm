@@ -1,5 +1,7 @@
 package logicbyte.vm;
 
+import logicbyte.vm.exception.NoSuchTypeException;
+
 /**
  * <p>
  * Contract interface for classes which implement virtual machine function pointers.
@@ -28,13 +30,13 @@ public interface VMFunctionPointer {
      *
      * @return The function return type-name, or null if the function is no longer loaded.
      */
-    public String returnTypeOfFunction();
+    public VMType returnTypeOfFunction() throws NoSuchTypeException;
 
     /**
      * Get the argument(s) to the function, or an empty array if no arguments, or null if the function is no longer loaded.
      *
      * @return The function argument type-names, or null if the function is no longer loaded.
      */
-    public VMType[] argumentTypesOfFunction();
+    public VMType[] argumentTypesOfFunction() throws NoSuchTypeException;
 
 }

@@ -20,12 +20,12 @@ import logicbyte.vm.VMGlobalsTable.GlobalType;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMInvokableAccess;
 import logicbyte.vm.VMJFunction;
-import logicbyte.vm.VMType;
 import logicbyte.vm.exception.NoSuchFunctionException;
 import logicbyte.vm.exception.ThrowObjectException;
 import logicbyte.vm.exception.UncaughtUserException;
 import logicbyte.vm.exception.VMException;
 import logictype.Pair;
+import logicbyte.vm.VMType;
 
 /**
  *
@@ -209,8 +209,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
 			Object[] anArrayOfValue = (Object[]) arguments[i];
 			Class<?> klazzOfArrayArgVal = klazzOfArgVal.getComponentType();
 
-			VMType wantedType = typeMapper.getTypeOf(funcBytecode.argtype(i)),
-				arrayKlazzType = instanceObj.gettype(ptr.closure(), klazzOfArrayArgVal);
+			VMType wantedType = typeMapper.getTypeOf(funcBytecode.argtype(i));
+			VMType arrayKlazzType = instanceObj.gettype(ptr.closure(), klazzOfArrayArgVal);
 
 			if (!instanceObj.checkcast(wantedType, arrayKlazzType))
 			    throw new VMException(String.format("argument at index %s not of required array type %s, got %s", i, wantedType,
@@ -238,8 +238,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		    } else {
 			if (funcBytecode.argarray(i))
 			    throw new VMException(String.format("argument at %s is array, got literal", i));
-			VMType wantedType = typeMapper.getTypeOf(funcBytecode.argtype(i)),
-				currentType = instanceObj.gettype(ptr.closure(), arguments[i]);
+			VMType wantedType = typeMapper.getTypeOf(funcBytecode.argtype(i));
+			VMType currentType = instanceObj.gettype(ptr.closure(), arguments[i]);
 			if (!instanceObj.checkcast(wantedType, currentType))
 			    throw new VMException(String.format("argument at index %s not of required type %s, got %s", i, wantedType,
 				    currentType));
@@ -663,8 +663,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (o.getopt(Opcodes.BITMASK_RETN_RVAL))
 	    if (func.bytecode().maskflag(BytecodeFunctionDecl.FUNC_MASK_HASRETARR)) {
 		BaseVMArrayImpl array = __getstackval(boundary, BaseVMArrayImpl.class);
-		VMType returnType = func.closure().types().getTypeOf(func.bytecode().returntype()),
-			hasType = array.typeOfArray;
+		VMType returnType = func.closure().types().getTypeOf(func.bytecode().returntype());
+		VMType hasType = array.typeOfArray;
 		if (!instanceObj.checkcast(returnType, hasType))
 		    __raise(debugger, boundary, String.format("expected %s array return type, got %s array type", returnType, hasType));
 		exitfunc(debugger, func, array);
@@ -672,8 +672,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		Object any = __getstackval(boundary, Object.class);
 		if (any instanceof BaseVMArrayImpl)
 		    __raise(debugger, boundary, "unexpected array return from literal return function");
-		VMType returnType = func.closure().types().getTypeOf(func.bytecode().returntype()),
-			hasType = instanceObj.gettype(func.closure(), any);
+		VMType returnType = func.closure().types().getTypeOf(func.bytecode().returntype());
+		VMType hasType = instanceObj.gettype(func.closure(), any);
 		if (!instanceObj.checkcast(returnType, hasType))
 		    __raise(debugger, boundary, String.format("expected %s return type, got %s type", returnType, hasType));
 		exitfunc(debugger, func, any);
@@ -1347,7 +1347,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	int local = __getoparg(o, 0, Integer.class);
 	VMType localType = __getlocaltype(boundary, local);
 	Object value = __getlocal(boundary, local, Object.class);
-	if ((localType == BaseVMPrimitiveType.TYPE_HANDLE || localType instanceof BaseVMType) && value == null) {
+	if ((localType == BaseVMPrimitiveType.TYPE_HANDLE || localType instanceof BaseVMUserType) && value == null) {
 	    __raise(debuggerObj, boundary, "attempt to dereference null handle pointer");
 	    return;
 	}
@@ -1360,7 +1360,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (globalBox == null)
 	    throw new IllegalStateException(String.format("GETGLOBAL: no such global %s", globalName));
 
-	if ((globalBox.typeOfGlobalValue == BaseVMPrimitiveType.TYPE_HANDLE || globalBox.typeOfGlobalValue instanceof BaseVMType) && globalBox.valueInGlobalBox == null) {
+	if ((globalBox.typeOfGlobalValue == BaseVMPrimitiveType.TYPE_HANDLE || globalBox.typeOfGlobalValue instanceof BaseVMUserType) && globalBox.valueInGlobalBox == null) {
 	    __raise(debuggerObj, boundary, "attempt to dereference null handle pointer");
 	    return;
 	}
@@ -1393,7 +1393,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	if (!globalBox.globalIsArrayType || !(globalBox.valueInGlobalBox instanceof BaseVMArrayImpl))
 	    throw new IllegalStateException(String.format("GETGLOBALARR: global %s is not array type", globalName));
 	BaseVMArrayImpl globalArrayObj = (BaseVMArrayImpl) globalBox.valueInGlobalBox;
-	if ((globalBox.typeOfGlobalValue == BaseVMPrimitiveType.TYPE_HANDLE || globalBox.typeOfGlobalValue instanceof BaseVMType)
+	if ((globalBox.typeOfGlobalValue == BaseVMPrimitiveType.TYPE_HANDLE || globalBox.typeOfGlobalValue instanceof BaseVMUserType)
 		&& globalArrayObj.arrayValues[globalArrayIndex] == null) {
 	    __raise(debuggerObj, boundary, "attempt to dereference null handle pointer");
 	    return;

@@ -5,6 +5,7 @@ import logicbyte.vm.VMClosureTypeMapper;
 import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMFunctionPointer;
 import logicbyte.vm.VMType;
+import logicbyte.vm.exception.NoSuchTypeException;
 
 /**
  *
@@ -29,13 +30,13 @@ public class BaseVMFunctionPointerImpl implements VMFunctionPointer {
     }
 
     @Override
-    public String returnTypeOfFunction() {
+    public VMType returnTypeOfFunction() throws NoSuchTypeException {
 	BytecodeFunctionDecl bytecode = this.funcImpl.bytecode();
-	return (bytecode.hasreturn()) ? this.funcImpl.closure().types().getTypeOf(bytecode.returntype()).name() : "nothing";
+	return (bytecode.hasreturn()) ? this.funcImpl.closure().types().getTypeOf(bytecode.returntype()) : BaseVMPrimitiveType.TYPE_NOTHING;
     }
 
     @Override
-    public VMType[] argumentTypesOfFunction() {
+    public VMType[] argumentTypesOfFunction() throws NoSuchTypeException {
 	if (!this.funcImpl.bytecode().hasargs())
 	    return new VMType[ 0 ];
 	BytecodeFunctionDecl bytecode = this.funcImpl.bytecode();

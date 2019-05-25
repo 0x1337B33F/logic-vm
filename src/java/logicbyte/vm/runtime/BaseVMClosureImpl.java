@@ -19,9 +19,9 @@ import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMGlobalsTable;
 import logicbyte.vm.VMGlobalsTable.GlobalType;
 import logicbyte.vm.VMInvokable;
-import logicbyte.vm.VMType;
 import logicbyte.vm.exception.UnsatisfiedImportException;
 import logicbyte.vm.exception.VMException;
+import logicbyte.vm.VMType;
 
 /**
  *

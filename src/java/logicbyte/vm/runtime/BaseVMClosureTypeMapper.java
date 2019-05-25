@@ -4,11 +4,11 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import logicbyte.vm.VMClosureTypeMapper;
-import logicbyte.vm.VMType;
 import logicbyte.vm.exception.DuplicateTypeNameException;
 import logicbyte.vm.exception.DuplicateTypeNumberException;
 import logicbyte.vm.exception.NoSuchTypeException;
 import logictype.BiDiMap;
+import logicbyte.vm.VMType;
 
 /**
  *

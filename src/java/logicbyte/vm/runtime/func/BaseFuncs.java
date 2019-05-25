@@ -4,11 +4,11 @@ import logicbyte.vm.LogicVM;
 import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMInvokable;
-import logicbyte.vm.VMType;
 import logicbyte.vm.exception.ThrowObjectException;
 import logicbyte.vm.exception.VMException;
 import logicbyte.vm.runtime.BaseVMArrayImpl;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl.VMJFunctionLabel;
+import logicbyte.vm.VMType;
 
 /**
  *

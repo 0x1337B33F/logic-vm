@@ -14,7 +14,6 @@ import logicbyte.vm.VMFunctionPointer;
 import logicbyte.vm.VMGlobalsTable.GlobalBox;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMJFunctionLambda;
-import logicbyte.vm.VMType;
 import logicbyte.vm.exception.ThrowObjectException;
 import logicbyte.vm.exception.VMException;
 import logicbyte.vm.runtime.BaseVMArrayImpl;
@@ -23,6 +22,7 @@ import logicbyte.vm.runtime.func.CoroutineFuncs.CoroutineImpl;
 import logicscript.assembler.writer.ChunkAssembler;
 import logicscript.ast.Chunk;
 import logicscript.parser.LogicScriptParser;
+import logicbyte.vm.VMType;
 
 /**
  *
@@ -130,9 +130,9 @@ public class ReflectFuncs {
 		throw new ThrowObjectException("call arguments required");
 
 	    for (int i = 0, j = argTypes.length; i < j; i++) {
-		VMType requiredType = argTypes[i],
-			argumentType = vm.getJType(caller.closure(),
-				(invokable.callArgs[i] != null) ? invokable.callArgs[i].getClass() : null);
+		VMType requiredType = argTypes[i];
+		VMType argumentType = vm.getJType(caller.closure(),
+			(invokable.callArgs[i] != null) ? invokable.callArgs[i].getClass() : null);
 		if (!vm.canCastToType(requiredType, argumentType))
 		    throw new ThrowObjectException(String.format("argument at index %s not of type %s, got %s", i,
 			    requiredType, argumentType));

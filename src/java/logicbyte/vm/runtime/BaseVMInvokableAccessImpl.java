@@ -2,10 +2,10 @@ package logicbyte.vm.runtime;
 
 import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMInvokableAccess;
-import logicbyte.vm.VMType;
 import logicbyte.vm.runtime.BaseVMInvokableImpl.Closure;
 import logicbyte.vm.runtime.BaseVMInvokableImpl.FunctionCallContext;
 import logictype.Pair;
+import logicbyte.vm.VMType;
 
 /**
  *
