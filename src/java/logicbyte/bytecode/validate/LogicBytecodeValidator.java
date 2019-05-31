@@ -17,6 +17,7 @@ import logicbyte.bytecode.Opcode;
 import logicbyte.bytecode.Opcode.OpcodeControlBitmask;
 import logicbyte.bytecode.Opcode.Opcodes;
 import logicbyte.bytecode.validate.BytecodeValidationException.IllegalOperandException;
+import logictype.Log;
 import logictype.Pair;
 
 /**
@@ -51,7 +52,7 @@ public class LogicBytecodeValidator {
 	mapGlobalsDecls.clear();
     }
 
-    public void validate(LinkerObjectFile linker, LogicBytecodeFile bytecode) throws LinkerValidationException, BytecodeValidationException {
+    public void validate(LinkerObjectFile linker, LogicBytecodeFile bytecode, Log log) throws LinkerValidationException, BytecodeValidationException {
 	generateTypesTables(linker, bytecode);
 	generateGlobalsTables(linker, bytecode);
 	validateFunctions(linker, bytecode);
