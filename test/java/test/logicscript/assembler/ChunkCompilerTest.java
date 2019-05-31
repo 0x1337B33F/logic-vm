@@ -13,6 +13,7 @@ import logicscript.assembler.writer.ChunkAssembler;
 import logicscript.ast.Chunk;
 import logicscript.parser.LogicScriptParser;
 import logicscript.parser.ParseException;
+import logictype.Log;
 import org.junit.Assert;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
@@ -49,11 +50,11 @@ public class ChunkCompilerTest {
 
 	ChunkAssembler assembler = new ChunkAssembler();
 
-	LinkerObjectFile allocLinkDst = new LinkerObjectFile();
-	LogicBytecodeFile allocBytecodeDst = new LogicBytecodeFile();
+	LinkerObjectFile allocLinkDst = new LinkerObjectFile("root");
+	LogicBytecodeFile allocBytecodeDst = new LogicBytecodeFile("root");
 
 	try {
-	    assembler.assembleChunk(_generatedCodeChunk, allocLinkDst, allocBytecodeDst);
+	    assembler.assembleChunk(_generatedCodeChunk, allocLinkDst, allocBytecodeDst, Log.VoidLog.INSTANCE);
 	} catch (Exception e) {
 	    e.printStackTrace(System.out);
 	    fail(e.getMessage() + "\r\n" + e.toString());
