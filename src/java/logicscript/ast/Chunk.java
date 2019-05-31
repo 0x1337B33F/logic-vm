@@ -167,7 +167,7 @@ public class Chunk implements Visitable {
      *
      * @return
      */
-    public TypeDecl findTypeDecl(String name) {
+    public TypeDecl findTypeDecl(final String name) {
 
 	/* formal types may not be overridden: */
 	if (name.equalsIgnoreCase("integer"))
