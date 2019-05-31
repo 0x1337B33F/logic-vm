@@ -56,6 +56,9 @@ public interface VMInvokable {
      */
     public Object tailcall(VMDebugCallback callback, VMFunctionPointer tailcallFunc, Object[] arguments, boolean wantsReturn) throws InterruptedException, VMException;
 
+    /**
+     * @return The debugging access object for this invokable instance.
+     */
     public VMInvokableAccess access();
 
 }

@@ -15,6 +15,12 @@ import logictype.Log;
  */
 public interface LogicVM {
 
+    /**
+     * Assign the default logger to use for this virtual machine. Subsequently generated function invokables, operations on the VM instance
+     * and other traceable events shall be passed to the logger.
+     *
+     * @param receiver The logging receiver implementation, or the void logger instance
+     */
     public void setLogger(Log receiver);
 
     /**
@@ -38,6 +44,11 @@ public interface LogicVM {
     public VMClosure load(final VMDebugCallback callback, final LinkerObjectFile linker) throws InterruptedException,
 	    DynamicLibraryException, VMException, UnsatisfiedImportException;
 
+    /**
+     * Get the list of loaded linkers.
+     *
+     * @param ptr The destination List
+     */
     public void loaded(final List<LinkerObjectFile> ptr);
 
     /**
@@ -69,6 +80,8 @@ public interface LogicVM {
      * @param klazz          The Java class type
      *
      * @return The created type object
+     *
+     * @throws VMException If the type cannot be defined, a {@link VMException} will be thrown.
      */
     public VMType defineJType(final VMClosure definer, String handleTypeName, Class<?> klazz) throws VMException;
 
@@ -84,7 +97,7 @@ public interface LogicVM {
      *
      * @return The created type object
      *
-     * @throws IllegalArgumentException Any checked exception
+     * @throws VMException If the type cannot be defined, a {@link VMException} will be thrown.
      */
     public VMType defineJType(final VMClosure definer, String handleTypeName, VMType superHandleType, Class<?> klazz) throws VMException;
 
@@ -109,6 +122,8 @@ public interface LogicVM {
      * @param typeName The type-name
      *
      * @return The created type object
+     *
+     * @throws VMException If the type cannot be defined, a {@link VMException} will be thrown.
      */
     public VMType defineType(final VMClosure definer, String typeName) throws VMException;
 
@@ -121,6 +136,8 @@ public interface LogicVM {
      * @param superType The super-type
      *
      * @return The created type object
+     *
+     * @throws VMException If the type cannot be defined, a {@link VMException} will be thrown.
      */
     public VMType defineType(final VMClosure definer, String typeName, VMType superType) throws VMException;
 
@@ -154,6 +171,23 @@ public interface LogicVM {
      */
     public VMType getJType(final VMClosure definer, Class<?> klazz);
 
+    /**
+     * <p>
+     * Determine if a value of the source type can be cast to the destination type, by:</p>
+     *
+     * <ul>
+     * <li>An exact type-match where <code>destType</code> = <code>srcType</code>;</li>
+     * <li>A type-widening, where <code>srcType</code> implements <code>destType</code>;</li>
+     * <li>An implicit cast from <code>srcType</code> to <code>destType</code>.</li>
+     * </ul>
+     *
+     * @param destType The destination type
+     * @param srcType  The source type
+     *
+     * @return If the value of source type can be cast to the destination type by exact type match, by type widening or implicit casting.
+     *
+     * @throws VMException
+     */
     public boolean canCastToType(final VMType destType, final VMType srcType) throws VMException;
 
     /**
@@ -188,16 +222,67 @@ public interface LogicVM {
      */
     public VMInvokable invoke(VMDebugCallback debug, VMFunctionPointer pointer);
 
+    /**
+     * <p>
+     * Invokes a function by function reference; the returned executor instance is a repeat-callable container which can be used to
+     * individually step through each operand in the function until complete.</p>
+     *
+     * @see #invoke(logicbyte.vm.VMDebugCallback, logicbyte.vm.VMFunctionPointer)
+     * @param debug    The debugger instance for the function call, which shall be bound to the function for the lifetime of the executor
+     *                 object.
+     * @param function The function reference
+     *
+     * @return A step-based executor reference which can be advanced per-operand, reset and debugged.
+     */
     public VMInvokable invoke(VMDebugCallback debug, VMFunction function);
 
+    /**
+     * <p>
+     * Obtain the result of an executor instance, or <code>null</code> if the executor has not yet completed.</p>
+     *
+     * @param inst The executor instance
+     *
+     * @return The return result, or <code>null</code>
+     */
     public Object result(VMInvokable inst);
 
+    /**
+     * <p>
+     * Obtain the result array of an executor instance as a native <code>Object[]</code> array, or <code>null</code> if the executor has not
+     * yet completed.</p>
+     *
+     * @param inst The executor instance
+     *
+     * @return The return result array, or <code>null</code>
+     */
     public Object[] resultArray(VMInvokable inst);
 
+    /**
+     * <p>
+     * Reset the executor instance provided, so that a new entry call can be made to the function with different argument(s).</p>
+     *
+     * @param inst The executor instance
+     */
     public void reset(VMInvokable inst);
 
+    /**
+     * <p>
+     * Determine if the executor instance has yielded.</p>
+     *
+     * @param inst The executor instance
+     *
+     * @return If the executor instance has yielded or not
+     */
     public boolean yielded(VMInvokable inst);
 
+    /**
+     * <p>
+     * Obtain the yielded value from the executor instance, or <code>null</code> if the yield did not yield a value.</p>
+     *
+     * @param inst The executor instance
+     *
+     * @return The yielded value as a native Java value, or <code>null</code> if the yield did not yield a value
+     */
     public Object yield(VMInvokable inst);
 
 }

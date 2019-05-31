@@ -20,6 +20,7 @@ import logicbyte.vm.VMFunctionPointer;
 import logicbyte.vm.VMGlobalsTable.GlobalBox;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMJFunction;
+import logicbyte.vm.VMType;
 import logicbyte.vm.exception.DuplicateTypeNameException;
 import logicbyte.vm.exception.LinkerNotLoadedException;
 import logicbyte.vm.exception.NoSuchFunctionException;
@@ -31,7 +32,6 @@ import logictype.BiDiMap;
 import logictype.HashMapList;
 import logictype.Log;
 import logictype.Pair;
-import logicbyte.vm.VMType;
 
 /**
  * <p>
@@ -56,6 +56,9 @@ import logicbyte.vm.VMType;
  */
 public class BaseLogicVMInstance implements LogicVM {
 
+    /**
+     * The logger default destination (as assigned by {@link #setLogger(logictype.Log)}), or the void logger
+     */
     protected Log logger = Log.VoidLog.INSTANCE;
 
     /**
@@ -63,16 +66,26 @@ public class BaseLogicVMInstance implements LogicVM {
      */
     final DynamicLibraryFile loaderImplObj;
 
+    /**
+     * The factory which will be used to initialize closures
+     */
     final VMClosureFactory closureFactory;
 
+    /**
+     * The factory which will be used to initialize types
+     */
     final VMTypeFactory typeFactory;
 
+    /**
+     * The global type hierarchy index
+     */
     final BaseVMTypeIndex globalTypesIndex;
 
     /**
      * The bi-directional map of all loaded linker &amp; bytecode objects
      */
     final BiDiMap< LinkerObjectFile, LogicBytecodeFile> loadedObjMap;
+
     /**
      * The map of all linkers to closures
      */

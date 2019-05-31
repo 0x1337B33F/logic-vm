@@ -20,12 +20,12 @@ import logicbyte.vm.VMGlobalsTable.GlobalType;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMInvokableAccess;
 import logicbyte.vm.VMJFunction;
+import logicbyte.vm.VMType;
 import logicbyte.vm.exception.NoSuchFunctionException;
 import logicbyte.vm.exception.ThrowObjectException;
 import logicbyte.vm.exception.UncaughtUserException;
 import logicbyte.vm.exception.VMException;
 import logictype.Pair;
-import logicbyte.vm.VMType;
 
 /**
  *

@@ -29,6 +29,8 @@ public interface VMFunctionPointer {
      * Get the return type-name of the function, or null if the function no longer loaded.
      *
      * @return The function return type-name, or null if the function is no longer loaded.
+     *
+     * @throws NoSuchTypeException If the function defines a return type that is not known, a {@link NoSuchTypeException} will be thrown.
      */
     public VMType returnTypeOfFunction() throws NoSuchTypeException;
 
@@ -36,6 +38,8 @@ public interface VMFunctionPointer {
      * Get the argument(s) to the function, or an empty array if no arguments, or null if the function is no longer loaded.
      *
      * @return The function argument type-names, or null if the function is no longer loaded.
+     *
+     * @throws NoSuchTypeException If the function defines an argument type that is not known, a {@link NoSuchTypeException} will be thrown.
      */
     public VMType[] argumentTypesOfFunction() throws NoSuchTypeException;
 
