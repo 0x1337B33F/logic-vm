@@ -520,7 +520,14 @@ void _FUNC_DECL_PARAMS( Chunk c, FunctionDecl t, boolean any ) : {
     
     (
 		"," { b0 = false; }
-		obj0 = TYPENAME( c )
+		( 
+		    obj0 = TYPENAME( c ) 
+		|
+		    t0 = <ANY> {
+			if ( ! any ) throw new ParseException ( "`any` type-name not allowed here" );
+			obj0 = TypeDecl.TYPE_ANY;
+		    }
+		)
 		( "[]" { b0 = true; } )?
 		t0 = <IDENTIFIER> {
 		    t.paramNames.add ( t0.image );
