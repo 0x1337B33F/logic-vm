@@ -110,7 +110,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
     public boolean advance(VMDebugCallback stepDebugger) throws InterruptedException, VMException {
 	if (callStack.isEmpty())
 	    return true;
-	synchronized ( runLock ) {
+	synchronized (runLock) {
 	    try {
 		yielded = false;
 		Pair<VMFunction, FunctionCallContext> env = callStack.peek();
@@ -269,7 +269,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    if (jfunc == null)
 		throw new NoSuchFunctionException(instanceObj, this, String.format("native function not found: %s", funcBytecode.
 			name()));
-	    
+
 	    final VMFunction caller = callStack.peek().a();
 
 	    Pair<VMFunction, FunctionCallContext> nativeContext = enterfunc(debugger, ptr, generatingOp);
@@ -368,6 +368,9 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		    break;
 		case PUSHR:
 		    boundary.functionStackStack.push(__getoparg(op, 0, Double.class));
+		    break;
+		case PUSHL:
+		    boundary.functionStackStack.push(__getoparg(op, 0, Long.class));
 		    break;
 		case PUSHS:
 		    boundary.functionStackStack.push(__getoparg(op, 0, String.class));
@@ -695,7 +698,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
     private void exec__CALL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	String fnName = __getoparg(o, 0, String.class);
 	int numArgs = __getoparg(o, 1, Integer.class);
-	Object[] argvals = new Object[ numArgs ];
+	Object[] argvals = new Object[numArgs];
 	VMFunctionPointer ptr = instanceObj.getfunc(func.closure(), fnName);
 	if (ptr == null) {
 	    __raise(debugger, boundary, String.format("No such function %s for function call", fnName));
@@ -710,7 +713,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
     private void exec__CALLLOCAL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	int localNum = __getoparg(o, 0, Integer.class);
 	int numArgs = __getoparg(o, 1, Integer.class);
-	Object[] argvals = new Object[ numArgs ];
+	Object[] argvals = new Object[numArgs];
 	for (int i = (numArgs - 1); i >= 0; i--)
 	    argvals[i] = __getstackval(boundary, Object.class);
 	VMFunctionPointer ptr = __getlocal(boundary, localNum, VMFunctionPointer.class);
@@ -725,7 +728,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
     private void exec__CALLGLOBAL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	String globalName = __getoparg(o, 0, String.class);
 	int numArgs = __getoparg(o, 1, Integer.class);
-	Object[] argvals = new Object[ numArgs ];
+	Object[] argvals = new Object[numArgs];
 	for (int i = (numArgs - 1); i >= 0; i--)
 	    argvals[i] = __getstackval(boundary, Object.class);
 
@@ -804,24 +807,29 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		Object rhs = __getstackval(boundary, Object.class);
 		Object lhs = __getstackval(boundary, Object.class);
 
-		if (!(rhs instanceof Integer) && !(rhs instanceof Double)) {
+		if (!(rhs instanceof Integer) && !(rhs instanceof Double) && !(rhs instanceof Long)) {
 		    __raise(debugger, boundary, String.format("Binary operation right-hand-side must be numeric type"));
 		    return;
 		}
-		if (!(lhs instanceof Integer) && !(lhs instanceof Double)) {
+		if (!(lhs instanceof Integer) && !(lhs instanceof Double) && !(rhs instanceof Long)) {
 		    __raise(debugger, boundary, String.format("Binary operation left-hand-side must be numeric type"));
 		    return;
 		}
 
 		Integer boxIntRhs = null, boxIntLhs = null;
 		Double boxDblRhs = null, boxDblLhs = null;
+		Long boxLngRhs = null, boxLngLhs = null;
 
-		if (rhs instanceof Integer)
+		if (rhs instanceof Long)
+		    boxLngRhs = (Long) rhs;
+		else if (rhs instanceof Integer)
 		    boxIntRhs = (Integer) rhs;
 		else
 		    boxDblRhs = (Double) rhs;
 
-		if (lhs instanceof Integer)
+		if (lhs instanceof Long)
+		    boxLngLhs = (Long) lhs;
+		else if (lhs instanceof Integer)
 		    boxIntLhs = (Integer) lhs;
 		else
 		    boxDblLhs = (Double) lhs;
@@ -830,7 +838,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
 		switch (asEnum) {
 		    case NUM_ADD:
-			if (boxIntLhs != null && boxIntRhs != null)
+			if (boxLngLhs != null || boxLngRhs != null) {
+			    if (boxLngLhs == null || boxLngRhs == null)
+				__raise(debugger, boundary, "Binary operation on long values requires both values be long type");
+			    product = boxLngLhs + boxLngRhs;
+			} else if (boxIntLhs != null && boxIntRhs != null)
 			    product = (int) (boxIntLhs + boxIntRhs);
 			else if (boxDblLhs != null && boxIntRhs != null)
 			    product = (double) (boxDblLhs + boxIntRhs);
@@ -842,7 +854,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 			    throw new IllegalStateException();
 			break;
 		    case NUM_SUB:
-			if (boxIntLhs != null && boxIntRhs != null)
+			if (boxLngLhs != null || boxLngRhs != null) {
+			    if (boxLngLhs == null || boxLngRhs == null)
+				__raise(debugger, boundary, "Binary operation on long values requires both values be long type");
+			    product = boxLngLhs - boxLngRhs;
+			} else if (boxIntLhs != null && boxIntRhs != null)
 			    product = (int) (boxIntLhs - boxIntRhs);
 			else if (boxDblLhs != null && boxIntRhs != null)
 			    product = (double) (boxDblLhs - boxIntRhs);
@@ -854,7 +870,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 			    throw new IllegalStateException();
 			break;
 		    case NUM_MUL:
-			if (boxIntLhs != null && boxIntRhs != null)
+			if (boxLngLhs != null || boxLngRhs != null) {
+			    if (boxLngLhs == null || boxLngRhs == null)
+				__raise(debugger, boundary, "Binary operation on long values requires both values be long type");
+			    product = boxLngLhs * boxLngRhs;
+			} else if (boxIntLhs != null && boxIntRhs != null)
 			    product = (int) (boxIntLhs * boxIntRhs);
 			else if (boxDblLhs != null && boxIntRhs != null)
 			    product = (double) (boxDblLhs * boxIntRhs);
@@ -866,7 +886,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 			    throw new IllegalStateException();
 			break;
 		    case NUM_DIV:
-			if (boxIntLhs != null && boxIntRhs != null)
+			if (boxLngLhs != null || boxLngRhs != null) {
+			    if (boxLngLhs == null || boxLngRhs == null)
+				__raise(debugger, boundary, "Binary operation on long values requires both values be long type");
+			    product = boxLngLhs / boxLngRhs;
+			} else if (boxIntLhs != null && boxIntRhs != null)
 			    product = (int) (boxIntLhs / boxIntRhs);
 			else if (boxDblLhs != null && boxIntRhs != null)
 			    product = (int) (boxDblLhs / boxIntRhs);
@@ -891,14 +915,18 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		int rhs = __getstackval(boundary, Integer.class);
 		Object lhs = __getstackval(boundary, Object.class);
 
-		if (!(lhs instanceof Integer) && !(lhs instanceof Double)) {
+		if (!(lhs instanceof Integer) && !(lhs instanceof Double) && !(lhs instanceof Long)) {
 		    __raise(debugger, boundary, "Binary operation left-hand-side must be numeric type");
 		    return;
 		}
 
 		Integer boxIntLhs = null;
 		Double boxDblLhs = null;
-		if (lhs instanceof Integer)
+		Long boxLngLhs = null;
+
+		if (lhs instanceof Long)
+		    boxLngLhs = (Long) lhs;
+		else if (lhs instanceof Integer)
 		    boxIntLhs = (Integer) lhs;
 		else
 		    boxDblLhs = (Double) lhs;
@@ -906,13 +934,17 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		Object product = null;
 		switch (asEnum) {
 		    case NUM_MOD:
-			if (boxIntLhs != null)
+			if (boxLngLhs != null)
+			    product = boxLngLhs % rhs;
+			else if (boxIntLhs != null)
 			    product = boxIntLhs % rhs;
 			else
 			    product = boxDblLhs % rhs;
 			break;
 		    case NUM_POW:
-			if (boxIntLhs != null)
+			if (boxLngLhs != null)
+			    product = (long) Math.pow(boxLngLhs, rhs);
+			else if (boxIntLhs != null)
 			    product = (int) Math.pow(boxIntLhs, rhs);
 			else
 			    product = (double) Math.pow(boxDblLhs, rhs);
@@ -930,9 +962,21 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		Object rhs = __getstackval(boundary, Object.class);
 		Object lhs = __getstackval(boundary, Object.class);
 
-		if (lhs instanceof Integer || lhs instanceof Double || rhs instanceof Integer || rhs instanceof Double) {
+		if (lhs instanceof Integer || lhs instanceof Double || lhs instanceof Long
+			|| rhs instanceof Integer || rhs instanceof Double || rhs instanceof Long) {
 		    Boolean product = null;
-		    if (lhs instanceof Integer && rhs instanceof Integer)
+		    if (lhs instanceof Long && rhs instanceof Long)
+			switch (asEnum) {
+			    case VAL_EQ:
+				product = (long) lhs == (long) rhs;
+				break;
+			    case VAL_NEQ:
+				product = (long) lhs != (long) rhs;
+				break;
+			    default:
+				throw new IllegalStateException();
+			}
+		    else if (lhs instanceof Integer && rhs instanceof Integer)
 			switch (asEnum) {
 			    case VAL_EQ:
 				product = (int) lhs == (int) rhs;
@@ -985,24 +1029,29 @@ public class BaseVMInvokableImpl implements VMInvokable {
 		Object rhs = __getstackval(boundary, Object.class);
 		Object lhs = __getstackval(boundary, Object.class);
 
-		if (!(rhs instanceof Integer) && !(rhs instanceof Double)) {
+		if (!(rhs instanceof Integer) && !(rhs instanceof Double) && !(rhs instanceof Long)) {
 		    __raise(debugger, boundary, String.format("Binary operation right-hand-side must be numeric type"));
 		    return;
 		}
-		if (!(lhs instanceof Integer) && !(lhs instanceof Double)) {
+		if (!(lhs instanceof Integer) && !(lhs instanceof Double) && !(rhs instanceof Long)) {
 		    __raise(debugger, boundary, String.format("Binary operation left-hand-side must be numeric type"));
 		    return;
 		}
 
 		Integer boxIntRhs = null, boxIntLhs = null;
 		Double boxDblRhs = null, boxDblLhs = null;
+		Long boxLngRhs = null, boxLngLhs = null;
 
-		if (rhs instanceof Integer)
+		if (rhs instanceof Long)
+		    boxLngRhs = (Long) rhs;
+		else if (rhs instanceof Integer)
 		    boxIntRhs = (Integer) rhs;
 		else
 		    boxDblRhs = (Double) rhs;
 
-		if (lhs instanceof Integer)
+		if (lhs instanceof Long)
+		    boxLngLhs = (Long) lhs;
+		else if (lhs instanceof Integer)
 		    boxIntLhs = (Integer) lhs;
 		else
 		    boxDblLhs = (Double) lhs;
@@ -1011,7 +1060,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 
 		switch (asEnum) {
 		    case VAL_GT:
-			if (boxIntLhs != null && boxIntRhs != null)
+			if (boxLngLhs != null || boxLngRhs != null) {
+			    if (boxLngLhs == null || boxLngRhs == null)
+				__raise(debugger, boundary, "Binary operation on long values requires both values be long type");
+			    product = boxLngLhs > boxLngRhs;
+			} else if (boxIntLhs != null && boxIntRhs != null)
 			    product = (boxIntLhs > boxIntRhs);
 			else if (boxIntLhs != null && boxDblRhs != null)
 			    product = (boxIntLhs > boxDblRhs);
@@ -1023,7 +1076,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 			    throw new IllegalStateException();
 			break;
 		    case VAL_GTEQ:
-			if (boxIntLhs != null && boxIntRhs != null)
+			if (boxLngLhs != null || boxLngRhs != null) {
+			    if (boxLngLhs == null || boxLngRhs == null)
+				__raise(debugger, boundary, "Binary operation on long values requires both values be long type");
+			    product = boxLngLhs >= boxLngRhs;
+			} else if (boxIntLhs != null && boxIntRhs != null)
 			    product = (boxIntLhs >= boxIntRhs);
 			else if (boxIntLhs != null && boxDblRhs != null)
 			    product = (boxIntLhs >= boxDblRhs);
@@ -1035,7 +1092,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 			    throw new IllegalStateException();
 			break;
 		    case VAL_LT:
-			if (boxIntLhs != null && boxIntRhs != null)
+			if (boxLngLhs != null || boxLngRhs != null) {
+			    if (boxLngLhs == null || boxLngRhs == null)
+				__raise(debugger, boundary, "Binary operation on long values requires both values be long type");
+			    product = boxLngLhs < boxLngRhs;
+			} else if (boxIntLhs != null && boxIntRhs != null)
 			    product = (boxIntLhs < boxIntRhs);
 			else if (boxIntLhs != null && boxDblRhs != null)
 			    product = (boxIntLhs < boxDblRhs);
@@ -1047,7 +1108,11 @@ public class BaseVMInvokableImpl implements VMInvokable {
 			    throw new IllegalStateException();
 			break;
 		    case VAL_LTEQ:
-			if (boxIntLhs != null && boxIntRhs != null)
+			if (boxLngLhs != null || boxLngRhs != null) {
+			    if (boxLngLhs == null || boxLngRhs == null)
+				__raise(debugger, boundary, "Binary operation on long values requires both values be long type");
+			    product = boxLngLhs <= boxLngRhs;
+			} else if (boxIntLhs != null && boxIntRhs != null)
 			    product = (boxIntLhs <= boxIntRhs);
 			else if (boxIntLhs != null && boxDblRhs != null)
 			    product = (boxIntLhs <= boxDblRhs);
@@ -1055,6 +1120,8 @@ public class BaseVMInvokableImpl implements VMInvokable {
 			    product = (boxDblLhs <= boxIntRhs);
 			else if (boxDblLhs != null && boxDblRhs != null)
 			    product = (boxDblLhs <= boxDblRhs);
+			else
+			    throw new IllegalStateException();
 			break;
 		    default:
 			throw new IllegalStateException();
@@ -1130,7 +1197,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
     private void exec__INCL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	int local = __getoparg(o, 0, Integer.class);
 	VMType localType = __getlocaltype(boundary, local);
-	if (localType != BaseVMPrimitiveType.TYPE_INTEGER && localType != BaseVMPrimitiveType.TYPE_REAL)
+	if (localType != BaseVMPrimitiveType.TYPE_INTEGER && localType != BaseVMPrimitiveType.TYPE_REAL && localType != BaseVMPrimitiveType.TYPE_LONG)
 	    __raise(debugger, boundary, String.format("Increment not permitted on non-numeric type %s", localType));
 
 	if (localType == BaseVMPrimitiveType.TYPE_INTEGER) {
@@ -1149,6 +1216,14 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    if (o.getopt(Opcodes.BITMASK_INCL_POST))
 		boundary.functionStackStack.push(value);
 	    __setlocal(func, boundary, local, value);
+	} else if ( localType == BaseVMPrimitiveType.TYPE_LONG) {
+	    long value = __getlocal(boundary, local, Long.class);
+	    if (o.getopt(Opcodes.BITMASK_INCL_PRE))
+		boundary.functionStackStack.push(value);
+	    value++;
+	    if (o.getopt(Opcodes.BITMASK_INCL_POST))
+		boundary.functionStackStack.push(value);
+	    __setlocal(func, boundary, local, value);
 	} else
 	    __throw("unsupported type for increment operation");
     }
@@ -1156,7 +1231,7 @@ public class BaseVMInvokableImpl implements VMInvokable {
     private void exec__DECL(VMFunction func, FunctionCallContext boundary, Opcode o, VMDebugCallback debugger) throws VMException {
 	int local = __getoparg(o, 0, Integer.class);
 	VMType localType = __getlocaltype(boundary, local);
-	if (localType != BaseVMPrimitiveType.TYPE_INTEGER && localType != BaseVMPrimitiveType.TYPE_REAL)
+	if (localType != BaseVMPrimitiveType.TYPE_INTEGER && localType != BaseVMPrimitiveType.TYPE_REAL && localType != BaseVMPrimitiveType.TYPE_LONG)
 	    __raise(debugger, boundary, String.format("Decrement not permitted on non-numeric type %s", localType));
 
 	if (localType == BaseVMPrimitiveType.TYPE_INTEGER) {
@@ -1169,6 +1244,14 @@ public class BaseVMInvokableImpl implements VMInvokable {
 	    __setlocal(func, boundary, local, value);
 	} else if (localType == BaseVMPrimitiveType.TYPE_REAL) {
 	    double value = __getlocal(boundary, local, Double.class);
+	    if (o.getopt(Opcodes.BITMASK_DECL_PRE))
+		boundary.functionStackStack.push(value);
+	    value--;
+	    if (o.getopt(Opcodes.BITMASK_DECL_POST))
+		boundary.functionStackStack.push(value);
+	    __setlocal(func, boundary, local, value);
+	} else if (localType == BaseVMPrimitiveType.TYPE_LONG) {
+	    long value = __getlocal(boundary, local, Long.class);
 	    if (o.getopt(Opcodes.BITMASK_DECL_PRE))
 		boundary.functionStackStack.push(value);
 	    value--;

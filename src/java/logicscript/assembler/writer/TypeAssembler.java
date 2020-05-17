@@ -148,7 +148,7 @@ public class TypeAssembler {
     }
 
     int internalNextTypeSlot() {
-	return 7 + assembledTypeTable.size();
+	return 8 + assembledTypeTable.size();
     }
 
     void internalAssembleType(TypeDecl declInst, TypesEntry impl) {
@@ -167,7 +167,7 @@ public class TypeAssembler {
     }
 
     public int getTypeNumber(TypeDecl compiledType) throws TypeAssemblerLookupException {
-	if ( compiledType == TypeDecl.TYPE_ANY )
+	if (compiledType == TypeDecl.TYPE_ANY)
 	    return -1;
 	if (compiledType == TypeDecl.TYPE_NOTHING)
 	    return 0;
@@ -181,8 +181,10 @@ public class TypeAssembler {
 	    return 4;
 	if (compiledType == TypeDecl.TYPE_REAL)
 	    return 5;
-	if (compiledType == TypeDecl.TYPE_STRING)
+	if (compiledType == TypeDecl.TYPE_LONG)
 	    return 6;
+	if (compiledType == TypeDecl.TYPE_STRING)
+	    return 7;
 
 	Integer boxOfVal = assembledTypeTable.reverse().get(compiledType);
 	if (boxOfVal == null)

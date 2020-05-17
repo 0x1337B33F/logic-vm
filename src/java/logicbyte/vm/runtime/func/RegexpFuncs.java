@@ -3,11 +3,13 @@ package logicbyte.vm.runtime.func;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import logicbyte.vm.LogicVM;
+import logicbyte.vm.VMClosure;
 import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMJFunctionLambda;
 import logicbyte.vm.exception.ThrowObjectException;
+import logicbyte.vm.exception.VMException;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 
 /**
@@ -49,7 +51,9 @@ public class RegexpFuncs {
 	return new RegexpWrapperImpl(Pattern.compile((String) args[0]));
     }
 
-    public static void apply(LogicVM vm) throws NoSuchMethodException {
+    public static void apply(LogicVM vm, VMClosure targetClosure) throws VMException, NoSuchMethodException {
+	
+	vm.defineJType(targetClosure, "regexp_matcher", RegexpWrapperImpl.class);
 
 	vm.defineJFunc("StrRegExp_CreateMatcher", BaseVMJFunctionImpl.generateFunctionStatic(RegexpFuncs.class, "newMatcher"));
 

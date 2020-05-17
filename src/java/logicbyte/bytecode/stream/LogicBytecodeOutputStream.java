@@ -18,7 +18,7 @@ public class LogicBytecodeOutputStream extends NeutralEncoderOutputStream {
     }
 
     public void writeBytecodeFile(LogicBytecodeFile file) throws IOException {
-	destDataStreamRef.write(new byte[] {0x13, (byte) 'L', (byte) 'S', (byte) 'f', (byte) 0xff});
+	destDataStreamRef.write(new byte[]{0x13, (byte) 'L', (byte) 'S', (byte) 'f', (byte) 0xff});
 	destDataStreamRef.writeShort((short) 1);
 	destDataStreamRef.writeShort((short) 0);
 
@@ -44,7 +44,7 @@ public class LogicBytecodeOutputStream extends NeutralEncoderOutputStream {
 	    writePackedInt(compiledFunction.numargs());
 	    for (int i = 0, j = compiledFunction.numargs(); i < j; i++)
 		writePackedInt(compiledFunction.argtype(i));
-	    
+
 	    int word = 0, count = compiledFunction.numargs();
 	    for (int i = 0; i < compiledFunction.numargs(); i += 8) {
 		for (int j = 0; j < 8; count--, j++)
@@ -114,6 +114,9 @@ public class LogicBytecodeOutputStream extends NeutralEncoderOutputStream {
 			break;
 		    case REAL_LITERAL:
 			destDataStreamRef.writeDouble((Double) opcodeObj.argobject(i));
+			break;
+		    case LONG_LITERAL:
+			writePackedLong((Long) opcodeObj.argobject(i));
 			break;
 		    case STR_LITERAL:
 			writeString((String) opcodeObj.argobject(i));

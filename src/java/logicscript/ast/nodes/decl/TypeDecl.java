@@ -12,6 +12,7 @@ public class TypeDecl extends Decl {
     public static final TypeDecl TYPE_STRING = new TypeDecl(TypeDeclType.SYSTEM_TYPE, "string");
     public static final TypeDecl TYPE_CODE = new TypeDecl(TypeDeclType.SYSTEM_TYPE, "code");
     public static final TypeDecl TYPE_HANDLE = new TypeDecl(TypeDeclType.SYSTEM_TYPE, "handle");
+    public static final TypeDecl TYPE_LONG = new TypeDecl(TypeDeclType.SYSTEM_TYPE, "long");
 
     public static final TypeDecl TYPE_NOTHING = new TypeDecl(TypeDeclType.SYSTEM_TYPE, "nothing");
     public static final TypeDecl TYPE_NULL = new TypeDecl(TypeDeclType.SYSTEM_TYPE, "null");

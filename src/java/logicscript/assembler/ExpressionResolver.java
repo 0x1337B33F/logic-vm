@@ -383,13 +383,15 @@ public class ExpressionResolver {
 		    case NUM_SUB:
 			/* both sides must be INTEGER or REAL: */
 			if (computedLhs.typeOfValue != TypeDecl.TYPE_INTEGER
-				&& computedLhs.typeOfValue != TypeDecl.TYPE_REAL)
+				&& computedLhs.typeOfValue != TypeDecl.TYPE_REAL 
+				&& computedLhs.typeOfValue != TypeDecl.TYPE_LONG)
 			    /* expression would have resulted in illegal production anyway ? */
 			    throw new Exception(String.format("Expected integer or real for numerical %s, got %s (at %s)",
 				    binExpr.operand.name().substring(3), computedLhs.typeOfValue, binExpr.lhs.location));
 
 			if (computedRhs.typeOfValue != TypeDecl.TYPE_INTEGER
-				&& computedRhs.typeOfValue != TypeDecl.TYPE_REAL)
+				&& computedRhs.typeOfValue != TypeDecl.TYPE_REAL
+				&& computedRhs.typeOfValue != TypeDecl.TYPE_LONG)
 			    /* expression would have resulted in illegal production anyway ? */
 			    throw new Exception(String.format("Expected integer or real for numerical %s, got %s (at %s)",
 				    binExpr.operand.name().substring(3), computedRhs.typeOfValue, binExpr.rhs.location));
@@ -401,13 +403,13 @@ public class ExpressionResolver {
 			 * the left-hand-side may be INTEGER or REAL, but the right-hand-side must be INTEGER:
 			 */
 			if (computedLhs.typeOfValue != TypeDecl.TYPE_INTEGER
-				&& computedLhs.typeOfValue != TypeDecl.TYPE_REAL)
+				&& computedLhs.typeOfValue != TypeDecl.TYPE_REAL
+				&& computedRhs.typeOfValue != TypeDecl.TYPE_LONG)
 			    /* expression would have resulted in illegal production anyway ? */
 			    throw new Exception(String.format("Expected integer or real for numerical %s, got %s (at %s)",
 				    binExpr.operand.name().substring(3), computedLhs.typeOfValue, binExpr.lhs.location));
 
-			if (computedRhs.typeOfValue != TypeDecl.TYPE_INTEGER
-				&& computedRhs.typeOfValue != TypeDecl.TYPE_REAL)
+			if (computedRhs.typeOfValue != TypeDecl.TYPE_INTEGER)
 			    /* expression would have resulted in illegal production anyway ? */
 			    throw new Exception(String.format("Expected integer or real for numerical %s, got %s (at %s)",
 				    binExpr.operand.name().substring(3), computedRhs.typeOfValue, binExpr.rhs.location));
@@ -424,13 +426,15 @@ public class ExpressionResolver {
 		    case VAL_LTEQ:
 			/* The left- and right-hand-side may be INTEGER or REAL */
 			if (computedLhs.typeOfValue != TypeDecl.TYPE_INTEGER
-				&& computedLhs.typeOfValue != TypeDecl.TYPE_REAL)
+				&& computedLhs.typeOfValue != TypeDecl.TYPE_REAL
+				&& computedRhs.typeOfValue != TypeDecl.TYPE_LONG)
 			    /* expression would have resulted in illegal production anyway ? */
 			    throw new Exception(String.format("Expected integer or real for numerical %s, got %s (at %s)",
 				    binExpr.operand.name().substring(3), computedLhs.typeOfValue, binExpr.lhs.location));
 
 			if (computedRhs.typeOfValue != TypeDecl.TYPE_INTEGER
-				&& computedRhs.typeOfValue != TypeDecl.TYPE_REAL)
+				&& computedRhs.typeOfValue != TypeDecl.TYPE_REAL
+				&& computedRhs.typeOfValue != TypeDecl.TYPE_LONG)
 			    /* expression would have resulted in illegal production anyway ? */
 			    throw new Exception(String.format("Expected integer or real for numerical %s, got %s (at %s)",
 				    binExpr.operand.name().substring(3), computedRhs.typeOfValue, binExpr.rhs.location));
@@ -523,6 +527,7 @@ public class ExpressionResolver {
 
 			Double d0 = null, d1 = null;
 			Integer i0 = null, i1 = null;
+			Long l0 = null, l1 = null;
 
 			if (lhsValObj instanceof Double)
 			    d0 = (Double) lhsValObj;
@@ -530,6 +535,8 @@ public class ExpressionResolver {
 			    d0 = ((Float) lhsValObj).doubleValue();
 			else if (lhsValObj instanceof Integer)
 			    i0 = (Integer) lhsValObj;
+			else if (lhsValObj instanceof Long)
+			    l0 = (Long) lhsValObj;
 
 			if (rhsValObj instanceof Double)
 			    d1 = (Double) rhsValObj;
@@ -537,20 +544,32 @@ public class ExpressionResolver {
 			    d1 = ((Float) rhsValObj).doubleValue();
 			else if (rhsValObj instanceof Integer)
 			    i1 = (Integer) rhsValObj;
+			else if (rhsValObj instanceof Long)
+			    l1 = (Long) rhsValObj;
 
 			switch (binExpr.operand) {
 
 			    case NUM_ADD:
-				if (d0 != null || d1 != null) {
-				    /* ADD (double, any | any, double) -> double */
+				if (l0 != null || l1 != null) {
+				    if ( l0 != null && l1 != null )
+					mutatedLiteral.valueObject = l0 + l1;
+				    else if ( l0 != null ) {
+					if ( d1 != null )
+					    mutatedLiteral.valueObject = l0 + d1.longValue();
+					else
+					    mutatedLiteral.valueObject = l0 + i1.longValue();
+				    } else {
+					if ( d0 != null )
+					    mutatedLiteral.valueObject = d0.doubleValue() + l1;
+					else
+					    mutatedLiteral.valueObject = i0.doubleValue() + l1;
+				    }
+				} else if (d0 != null || d1 != null) {
 				    if (d0 != null && d1 != null)
-					/* -> ADD ( double, double ) -> double (as REAL) */
 					mutatedLiteral.valueObject = d0 + d1;
 				    else if (d0 != null)
-					/* -> ADD ( double, int ) -> double (as REAL) */
 					mutatedLiteral.valueObject = d0 + i1.doubleValue();
 				    else
-					/* -> ADD ( int, double ) -> double (as REAL) */
 					mutatedLiteral.valueObject = i0.doubleValue() + d1;
 				    mutatedLiteral.typeOfValue = TypeDecl.TYPE_REAL;
 				} else {
@@ -560,7 +579,21 @@ public class ExpressionResolver {
 				}
 				break;
 			    case NUM_SUB:
-				if (d0 != null || d1 != null) {
+				if (l0 != null || l1 != null) {
+				    if ( l0 != null && l1 != null )
+					mutatedLiteral.valueObject = l0 - l1;
+				    else if ( l0 != null ) {
+					if ( d1 != null )
+					    mutatedLiteral.valueObject = l0 - d1.longValue();
+					else
+					    mutatedLiteral.valueObject = l0 - i1.longValue();
+				    } else {
+					if ( d0 != null )
+					    mutatedLiteral.valueObject = d0.doubleValue() - l1;
+					else
+					    mutatedLiteral.valueObject = i0.doubleValue() - l1;
+				    }
+				} else if (d0 != null || d1 != null) {
 				    /* SUB (double, any | any, double) -> double */
 				    if (d0 != null && d1 != null)
 					/* -> SUB ( double, double ) -> double (as REAL) */
@@ -579,7 +612,21 @@ public class ExpressionResolver {
 				}
 				break;
 			    case NUM_DIV:
-				if (d0 != null || d1 != null)
+				if (l0 != null || l1 != null) {
+				    if ( l0 != null && l1 != null )
+					mutatedLiteral.valueObject = l0 / l1;
+				    else if ( l0 != null ) {
+					if ( d1 != null )
+					    mutatedLiteral.valueObject = l0 / d1.longValue();
+					else
+					    mutatedLiteral.valueObject = l0 / i1.longValue();
+				    } else {
+					if ( d0 != null )
+					    mutatedLiteral.valueObject = d0.doubleValue() / l1;
+					else
+					    mutatedLiteral.valueObject = i0.doubleValue() / l1;
+				    }
+				} else if (d0 != null || d1 != null)
 				    /* DIV (....) */
 				    if (d0 != null && d1 != null) {
 					/* -> DIV ( double, double ) -> double (as REAL) */
@@ -601,7 +648,21 @@ public class ExpressionResolver {
 				}
 				break;
 			    case NUM_MUL:
-				if (d0 != null || d1 != null)
+				if (l0 != null || l1 != null) {
+				    if ( l0 != null && l1 != null )
+					mutatedLiteral.valueObject = l0 * l1;
+				    else if ( l0 != null ) {
+					if ( d1 != null )
+					    mutatedLiteral.valueObject = l0 * d1.longValue();
+					else
+					    mutatedLiteral.valueObject = l0 * i1.longValue();
+				    } else {
+					if ( d0 != null )
+					    mutatedLiteral.valueObject = d0.doubleValue() * l1;
+					else
+					    mutatedLiteral.valueObject = i0.doubleValue() * l1;
+				    }
+				} else if (d0 != null || d1 != null)
 				    /* MUL (....) */
 				    if (d0 != null && d1 != null) {
 					/* -> MUL ( double, double ) -> double (as REAL) */
@@ -631,6 +692,7 @@ public class ExpressionResolver {
 		    case NUM_POW: {
 			Double d0 = null;
 			Integer i0 = null, i1 = null;
+			Long l0 = null;
 
 			if (lhsValObj instanceof Double)
 			    d0 = (Double) lhsValObj;
@@ -638,6 +700,8 @@ public class ExpressionResolver {
 			    d0 = ((Float) lhsValObj).doubleValue();
 			else if (lhsValObj instanceof Integer)
 			    i0 = (Integer) lhsValObj;
+			else if (lhsValObj instanceof Long)
+			    l0 = (Long) lhsValObj;
 
 			if (!(rhsValObj instanceof Integer))
 			    throw new Exception(String.format(
@@ -647,17 +711,21 @@ public class ExpressionResolver {
 
 			switch (binExpr.operand) {
 			    case NUM_MOD: {
-				if (d0 != null)
+				if ( l0 != null )
+				    mutatedLiteral.valueObject = l0 % i1;
+				else if (d0 != null)
 				    mutatedLiteral.valueObject = d0 % i1;
 				else
 				    mutatedLiteral.valueObject = i0 % i1;
 				break;
 			    }
 			    case NUM_POW: {
-				if (d0 != null)
-				    mutatedLiteral.valueObject = d0 % i1;
+				if ( l0 != null )
+				    mutatedLiteral.valueObject = (Long) ( (long) Math.pow( (double) l0, (double) i1) );
+				else if (d0 != null)
+				    mutatedLiteral.valueObject = Math.pow( d0, (double) i1);
 				else
-				    mutatedLiteral.valueObject = i0 % i1;
+				    mutatedLiteral.valueObject = (Integer) ( (int) Math.pow( ( double ) i0 , (double) i1 ) );
 				break;
 			    }
 
@@ -688,6 +756,7 @@ public class ExpressionResolver {
 			    Double d0 = null, d1 = null;
 			    Integer i0 = null, i1 = null;
 			    Boolean b0 = null, b1 = null;
+			    Long l0 = null, l1 = null;
 
 			    if (lhsValObj instanceof Double)
 				d0 = (Double) lhsValObj;
@@ -697,6 +766,8 @@ public class ExpressionResolver {
 				i0 = (Integer) lhsValObj;
 			    if (lhsValObj instanceof Boolean)
 				b0 = (Boolean) lhsValObj;
+			    if ( lhsValObj instanceof Long)
+				l0 = (Long) lhsValObj;
 
 			    if (rhsValObj instanceof Double)
 				d1 = (Double) rhsValObj;
@@ -706,6 +777,8 @@ public class ExpressionResolver {
 				i1 = (Integer) rhsValObj;
 			    if (rhsValObj instanceof Boolean)
 				b1 = (Boolean) rhsValObj;
+			    if ( rhsValObj instanceof Long ) 
+				l1 = (Long) rhsValObj;
 
 			    if (b0 != null || b1 != null) {
 				if (b0 == null || b1 == null)
@@ -722,6 +795,16 @@ public class ExpressionResolver {
 				    default:
 					throw new Exception("illegal state");
 				}
+			    } else if (l0 != null || l1 != null ) {
+				if ( l0 != null && l1 != null ) {
+				    switch ( binExpr.operand ) {
+					case VAL_EQ: mutatedLiteral.valueObject = ( ((long) l0) == ((long) l1) ); break;
+					case VAL_NEQ: mutatedLiteral.valueObject = ( ((long) l0) != ((long) l1) ); break;
+					default: throw new Exception("illegal state");
+				    }
+				} else
+				    throw new Exception(String.format("Expected long, long for operand %s where one argument is long, got %s, %s",
+					    binExpr.operand, computedLhs.typeOfValue, computedRhs.typeOfValue));
 			    } else if (d0 != null || d1 != null)
 				if (d0 != null && d1 != null)
 				    switch (binExpr.operand) {
@@ -779,6 +862,7 @@ public class ExpressionResolver {
 
 			Double d0 = null, d1 = null;
 			Integer i0 = null, i1 = null;
+			Long l0 = null, l1 = null;
 
 			if (lhsValObj instanceof Double)
 			    d0 = (Double) lhsValObj;
@@ -786,6 +870,8 @@ public class ExpressionResolver {
 			    d0 = ((Float) lhsValObj).doubleValue();
 			else if (lhsValObj instanceof Integer)
 			    i0 = (Integer) lhsValObj;
+			else if ( lhsValObj instanceof Long )
+			    l0 = (Long) lhsValObj;
 
 			if (rhsValObj instanceof Double)
 			    d1 = (Double) rhsValObj;
@@ -793,10 +879,18 @@ public class ExpressionResolver {
 			    d1 = ((Float) rhsValObj).doubleValue();
 			else if (rhsValObj instanceof Integer)
 			    i1 = (Integer) rhsValObj;
+			else if (lhsValObj instanceof Long)
+			    l1 = (Long) rhsValObj;
 
 			switch (binExpr.operand) {
 			    case VAL_GT:
-				if (d0 != null || d1 != null)
+				if (l0 != null || l1 != null ) {
+				    if ( l0 != null && l1 != null ) {
+					mutatedLiteral.valueObject = l0 > l1;
+				    } else
+					throw new Exception(String.format("Expected long, long for operand %s where one argument is long, got %s, %s",
+						binExpr.operand, computedLhs.typeOfValue, computedRhs.typeOfValue));
+				} else if (d0 != null || d1 != null)
 				    if (d0 != null && d1 != null)
 					mutatedLiteral.valueObject = d0 > d1;
 				    else if (d0 != null)
@@ -807,7 +901,13 @@ public class ExpressionResolver {
 				    mutatedLiteral.valueObject = i0 > i1;
 				break;
 			    case VAL_LT:
-				if (d0 != null || d1 != null)
+				if (l0 != null || l1 != null ) {
+				    if ( l0 != null && l1 != null ) {
+					mutatedLiteral.valueObject = l0 < l1;
+				    } else
+					throw new Exception(String.format("Expected long, long for operand %s where one argument is long, got %s, %s",
+						binExpr.operand, computedLhs.typeOfValue, computedRhs.typeOfValue));
+				} else if (d0 != null || d1 != null)
 				    if (d0 != null && d1 != null)
 					mutatedLiteral.valueObject = d0 < d1;
 				    else if (d0 != null)
@@ -818,7 +918,13 @@ public class ExpressionResolver {
 				    mutatedLiteral.valueObject = i0 < i1;
 				break;
 			    case VAL_GTEQ:
-				if (d0 != null || d1 != null)
+				if (l0 != null || l1 != null ) {
+				    if ( l0 != null && l1 != null ) {
+					mutatedLiteral.valueObject = l0 >= l1;
+				    } else
+					throw new Exception(String.format("Expected long, long for operand %s where one argument is long, got %s, %s",
+						binExpr.operand, computedLhs.typeOfValue, computedRhs.typeOfValue));
+				} else if (d0 != null || d1 != null)
 				    if (d0 != null && d1 != null)
 					mutatedLiteral.valueObject = d0 >= d1;
 				    else if (d0 != null)
@@ -829,7 +935,13 @@ public class ExpressionResolver {
 				    mutatedLiteral.valueObject = i0 >= i1;
 				break;
 			    case VAL_LTEQ:
-				if (d0 != null || d1 != null)
+				if (l0 != null || l1 != null ) {
+				    if ( l0 != null && l1 != null ) {
+					mutatedLiteral.valueObject = l0 <= l1;
+				    } else
+					throw new Exception(String.format("Expected long, long for operand %s where one argument is long, got %s, %s",
+						binExpr.operand, computedLhs.typeOfValue, computedRhs.typeOfValue));
+				} else if (d0 != null || d1 != null)
 				    if (d0 != null && d1 != null)
 					mutatedLiteral.valueObject = d0 <= d1;
 				    else if (d0 != null)
@@ -1057,6 +1169,9 @@ public class ExpressionResolver {
 		case NUM_SUB:
 		case NUM_DIV:
 		case NUM_MUL:
+		    /* operators on LONG type always return LONG numbers, regardless of other params: */
+		    if ( computedLhsType == TypeDecl.TYPE_LONG || computedRhsType == TypeDecl.TYPE_LONG)
+			return TypeDecl.TYPE_LONG;
 		    /* all other numerical operations require REAL or INTEGER numbers only: */
 		    return (computedLhsType == TypeDecl.TYPE_REAL || computedRhsType == TypeDecl.TYPE_REAL)
 			    ? /* BINARY_NUM_* ( [int|real], [int|real] ) */ TypeDecl.TYPE_REAL
@@ -1067,7 +1182,7 @@ public class ExpressionResolver {
 			throw new TypeMismatchException(TypeDecl.TYPE_INTEGER, computedRhsType,
 				((BinaryExpression) node).rhs);
 		    /* BINARY_NUM_MOD, BINARY_NUM_POW ( real, int ) */
-		    return TypeDecl.TYPE_REAL;
+		    return computedLhsType;
 		default:
 		    /* illegal */
 		    return TypeDecl.TYPE_NOTHING;

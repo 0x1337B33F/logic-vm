@@ -169,6 +169,9 @@ public class LogicBytecodeInputStream extends NeutralDecoderInputStream {
 		    case REAL_LITERAL:
 			args.add(srcDataStreamRef.readDouble());
 			break;
+		    case LONG_LITERAL:
+			args.add(readPackedLong());
+			break;
 		    case STR_LITERAL:
 			args.add(readString());
 			break;

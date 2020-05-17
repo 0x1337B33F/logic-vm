@@ -8,6 +8,7 @@ import logicbyte.bytecode.Opcode;
 import logicbyte.bytecode.Opcode.Opcodes;
 import logicbyte.loader.DynamicLibraryImpl;
 import logicbyte.vm.LogicVM;
+import logicbyte.vm.VMClosure;
 import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMFunctionPointer;
@@ -18,6 +19,12 @@ import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 import logicbyte.vm.runtime.factory.BaseVMClosureFactory;
 import logicbyte.vm.runtime.factory.BaseVMFactory;
 import logicbyte.vm.exception.ThrowObjectException;
+import logicbyte.vm.runtime.factory.BaseVMTypeFactory;
+import logicbyte.vm.runtime.func.ConsoleFuncs;
+import logicbyte.vm.runtime.func.CoroutineFuncs;
+import logicbyte.vm.runtime.func.ListFuncs;
+import logicbyte.vm.runtime.func.ReflectFuncs;
+import logicbyte.vm.runtime.func.RegexpFuncs;
 import static org.junit.Assert.*;
 import org.junit.Before;
 import org.junit.Test;
@@ -108,7 +115,7 @@ public class VMTest {
 
 	    System.out.println(String.format("Loaded linkers: %s", lib.getLoadableList().size()));
 
-	    vm = (new BaseVMFactory()).create(lib, new BaseVMClosureFactory());
+	    vm = (new BaseVMFactory()).create(lib, new BaseVMClosureFactory(), new BaseVMTypeFactory());
 
 	    if (vm == null)
 		throw new Exception("vm creation failed");
@@ -118,16 +125,26 @@ public class VMTest {
 	    assertNull("expected no exception", e);
 	}
 
-	LinkerObjectFile mainLinker = null;
+	LinkerObjectFile rootLinker = null, mainLinker = null;
 
 	try {
 
 	    List<LinkerObjectFile> linkers = lib.getLoadableList();
 	    assertTrue("no linkers were loaded", linkers.size() > 0);
-	    Iterator<LinkerObjectFile> itx = linkers.iterator();
 
+	    rootLinker = lib.getBytecodeFor(new File("out", "root.o"));
+	    
+	    if ( rootLinker == null )
+		throw new Exception("Cannot find root types");
+	    VMClosure rootClosure = vm.load(null, rootLinker);
+	    
+	    BaseVMFactory.applyStaticMethods(vm, ConsoleFuncs.class);
+	    CoroutineFuncs.apply(vm, rootClosure);
+	    ListFuncs.apply(vm, rootClosure);
+	    ReflectFuncs.apply(vm, rootClosure);
+	    RegexpFuncs.apply(vm, rootClosure);
+	    
 	    mainLinker = lib.getBytecodeFor(new File("out", "test.o"));
-
 	    if (mainLinker == null)
 		throw new Exception("Cannot find test");
 
@@ -143,14 +160,14 @@ public class VMTest {
 
 	try {
 	    vm.defineJFunc("TestNativePassedFunctionPointerNativeCall", BaseVMJFunctionImpl.generateFunctionLambda(
-		    (vmObj, exec, debug, args) -> {
+		    (vmObj, exec, caller, debug, args) -> {
 			if (args.length == 0)
 			    throw new Exception("arguments required to native call");
 			VMFunctionPointer pointerRef = (VMFunctionPointer) args[0];
 			return exec.tailcall(debug, pointerRef, null, true);
 		    }));
 
-	    vm.defineJFunc("TestNativeThrowsExceptionAlways", BaseVMJFunctionImpl.generateFunctionLambda((vmObj, exec, debug, args) -> {
+	    vm.defineJFunc("TestNativeThrowsExceptionAlways", BaseVMJFunctionImpl.generateFunctionLambda((vmObj, exec, caller, debug, args) -> {
 		throw new ThrowObjectException(42);
 	    }));
 
@@ -173,7 +190,7 @@ public class VMTest {
 	    callable = vm.invoke(null, vm.getFunction(mainLinker, "TestGetGlobalArrayIntVal"));
 	    callable.invoke(callback, null);
 	    while (!callable.advance(null));*/
-	    VMInvokable callable = vm.invoke(null, vm.getFunction(mainLinker, "TestCoFuncCaptureError"));
+	    VMInvokable callable = vm.invoke(null, vm.getFunction(mainLinker, "TestLongNumberFunc"));
 	    callable.invoke(null, null);
 
 	    boolean state = false;

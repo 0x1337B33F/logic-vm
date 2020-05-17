@@ -319,3 +319,33 @@ function	TestUnaryIncrDecrFunc000	takes nothing returns nothing
     endloop
 
 endfunction
+
+
+
+/* Test that longs behave as expected: */
+
+function        TestLongNumberFunc              takes nothing returns nothing
+    local   long    l0 = 1L
+    local   long    l1 = 10000000L
+    local   long    l2 = 0L
+
+    call PrintConsole( Str_Concat( "The value of l0 is ", Cast_L2S( l0 ) ) )
+    call PrintConsole( Str_Concat( "The value of l1 is ", Cast_L2S( l1 ) ) )
+
+    set l2 = l1 + ( l0 * 2L )
+    call PrintConsole( Str_Concat( "The value of l2 is ", Cast_L2S( l2 ) ) )
+
+    set l2 = l2 * l2
+    call PrintConsole( Str_Concat( "The value of l2 is ", Cast_L2S( l2 ) ) )
+
+    set l2 = 0L
+    
+    loop
+        exitwhen l2 > 5L
+        call PrintConsole( Str_Concat( "The value of counter is ", Cast_L2S( l2++ ) ) )
+    endloop
+
+    set l2 = Cast_S2L( "1337133713371337" )
+    call PrintConsole( Str_Concat( "The value of l2 is ", Cast_L2S( l2 ) ) )
+
+endfunction

@@ -16,6 +16,7 @@ public class BaseVMPrimitiveType implements VMType {
     public static final BaseVMPrimitiveType TYPE_BOOLEAN = new BaseVMPrimitiveType("boolean");
     public static final BaseVMPrimitiveType TYPE_INTEGER = new BaseVMPrimitiveType("integer");
     public static final BaseVMPrimitiveType TYPE_REAL = new BaseVMPrimitiveType("real");
+    public static final BaseVMPrimitiveType TYPE_LONG = new BaseVMPrimitiveType("long");
     public static final BaseVMPrimitiveType TYPE_STRING = new BaseVMPrimitiveType("string");
 
     private final String internalName;

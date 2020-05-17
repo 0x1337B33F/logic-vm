@@ -4,11 +4,13 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import logicbyte.vm.LogicVM;
+import logicbyte.vm.VMClosure;
 import logicbyte.vm.VMDebugCallback;
 import logicbyte.vm.VMFunction;
 import logicbyte.vm.VMInvokable;
 import logicbyte.vm.VMJFunctionLambda;
 import logicbyte.vm.exception.ThrowObjectException;
+import logicbyte.vm.exception.VMException;
 import logicbyte.vm.runtime.BaseVMJFunctionImpl;
 
 /**
@@ -181,8 +183,9 @@ public class ListFuncs {
 	}
     };
 
-    public static void apply(LogicVM inst) throws NoSuchMethodException {
-
+    public static void apply(LogicVM inst, VMClosure closure) throws VMException, NoSuchMethodException {
+	inst.defineJType(closure, "list", List.class);
+	
 	inst.defineJFunc("List_NewB", BaseVMJFunctionImpl.generateFunctionLambda(new ListAllocatorInternalTyped<Boolean>()));
 	inst.defineJFunc("List_NewI", BaseVMJFunctionImpl.generateFunctionLambda(new ListAllocatorInternalTyped<Integer>()));
 	inst.defineJFunc("List_NewR", BaseVMJFunctionImpl.generateFunctionLambda(new ListAllocatorInternalTyped<Double>()));

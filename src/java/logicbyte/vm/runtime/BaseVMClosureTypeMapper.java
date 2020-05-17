@@ -23,9 +23,10 @@ public class BaseVMClosureTypeMapper implements VMClosureTypeMapper {
     public static final int TYPENUMBER_BOOLEAN = 3;
     public static final int TYPENUMBER_INTEGER = 4;
     public static final int TYPENUMBER_REAL = 5;
-    public static final int TYPENUMBER_STRING = 6;
+    public static final int TYPENUMBER_LONG = 6;
+    public static final int TYPENUMBER_STRING = 7;
 
-    public static final int TYPEINDEX_USER = 7;
+    public static final int TYPEINDEX_USER = 8;
 
     /**
      * The mapping of local type numbers to virtual machine types.
@@ -73,6 +74,8 @@ public class BaseVMClosureTypeMapper implements VMClosureTypeMapper {
 		case 5:
 		    return BaseVMPrimitiveType.TYPE_REAL;
 		case 6:
+		    return BaseVMPrimitiveType.TYPE_LONG;
+		case 7:
 		    return BaseVMPrimitiveType.TYPE_STRING;
 	    }
 	VMType result = typeTable.get(typeNumber);

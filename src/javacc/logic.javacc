@@ -96,6 +96,12 @@ public class LogicScriptParser {
 	    return Integer.parseInt ( token );
     }
 
+    private static long _tolong ( String token ) throws NumberFormatException {
+	if ( token.endsWith("l") || token.endsWith("L") )
+	    token = token.substring ( 0, token.length() - 1 );
+	return Long.parseLong ( token );
+    }
+
     private static String _tostr ( String token ) throws ParseException {
 	char word = token.charAt ( 0 );
 	if ( word == '"' ) {
@@ -142,7 +148,10 @@ TOKEN : {
     <STRING_LITERAL : "\"" ("\\\""|~["\""])* "\"" >	|
 
     /** Reals: */
-    <REAL_LITERAL : ([ "+", "-" ])? (["0"-"9"])+ ( "." (["0"-"9"])+ )? ("R"|"r") >
+    <REAL_LITERAL : ([ "+", "-" ])? (["0"-"9"])+ ( "." (["0"-"9"])+ )? ("R"|"r") > |
+
+    /** Longs: */
+    <LONG_LITERAL : ([ "+", "-" ])? (["0"-"9"])+ ("L"|"l") >
 }
 
 TOKEN : { 
@@ -168,6 +177,7 @@ TOKEN : {
     <REAL : "real"> |
     <BOOLEAN : "boolean"> |
     <STRING : "string"> |
+    <LONG : "long"> |
     <CODE : "code"> |
     <HANDLE : "handle"> |
     
@@ -658,6 +668,11 @@ DirectAssembly ASM_STMT( Chunk c ): {
 		arguments.add ( _toreal ( t3.image ) );
 	    }  |				
 
+            t3 = <LONG_LITERAL> {       /* OPCODE_ARGUMENT_LONG */
+		if ( arguments == null ) arguments = new LinkedList();
+		arguments.add ( _tolong ( t3.image ) );
+	    }  |				
+
 	    t3 = <STRING_LITERAL> {	/* OPCODE_ARGUMENT_STRING */
 		if ( arguments == null ) arguments = new LinkedList();
 		arguments.add ( _tostr ( t3.image ) );
@@ -1074,9 +1089,10 @@ Expression EXPR( Chunk c ) : {
 	) |
 
 	/** Expansions for literals */
-	t0 = <REAL_LITERAL>	{ ret = new LiteralValue ( TypeDecl.TYPE_REAL,   _toreal(t0.image) ); tag ( ret, t0 ); } |
+	t0 = <REAL_LITERAL>	{ ret = new LiteralValue ( TypeDecl.TYPE_REAL,    _toreal(t0.image) ); tag ( ret, t0 ); } |
 	t0 = <INTEGER_LITERAL> 	{ ret = new LiteralValue ( TypeDecl.TYPE_INTEGER, _toint(t0.image) ); tag ( ret, t0 ); } | 
-	t0 = <STRING_LITERAL> 	{ ret = new LiteralValue ( TypeDecl.TYPE_STRING,  _tostr(t0.image) ); tag ( ret, t0 ); } 
+	t0 = <STRING_LITERAL> 	{ ret = new LiteralValue ( TypeDecl.TYPE_STRING,  _tostr(t0.image) ); tag ( ret, t0 ); } |
+        t0 = <LONG_LITERAL>     { ret = new LiteralValue ( TypeDecl.TYPE_LONG,    _tolong(t0.image) ); tag ( ret, t0 ); } 
     )
 
     ( /* Consider if a BINARY_OPERAND follows...: */
@@ -1129,6 +1145,7 @@ TypeDecl TYPENAME( Chunk c ) : { Token t0 = null; }{
     <REAL> { return TypeDecl.TYPE_REAL; } | 
     <STRING> { return TypeDecl.TYPE_STRING; } | 
     <BOOLEAN> { return TypeDecl.TYPE_BOOLEAN; } | 
+    <LONG> { return TypeDecl.TYPE_LONG; } |
     <CODE> { return TypeDecl.TYPE_CODE; } | 
     <HANDLE> { return TypeDecl.TYPE_HANDLE; } |
     t0 = <IDENTIFIER> { 

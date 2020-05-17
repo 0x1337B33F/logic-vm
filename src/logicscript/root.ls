@@ -72,15 +72,23 @@ globals
 endglobals
 
 
-/* Casting functions: (Integer,Real,Boolean) -> String, String -> (Integer,Real,Boolean) */
+/* Casting functions: (Integer,Real,Boolean,Long) -> String, String -> (Integer,Real,Boolean,Long) */
 
 native function		Cast_I2S	takes   integer value   						returns string
 native function		Cast_R2S	takes   real	value   						returns string
 native function		Cast_B2S	takes   boolean value   						returns string
+native function         Cast_L2S        takes   long    value                                                   returns string
 
 native function		Cast_S2I	takes   string value							returns integer
 native function	 	Cast_S2R	takes   string value							returns real
 native function	 	Cast_S2B	takes   string value							returns boolean
+native function         Cast_S2L        takes   string value                                                    returns long
+
+/* Numerical casting functions */
+native function         Cast_I2L        takes   integer value                                                   returns long
+native function         Cast_R2L        takes   real    value                                                   returns long
+native function         Cast_L2I        takes   real    value, boolean hiword                                   returns integer
+native function         Cast_L2R        takes   real    value, boolean hiword                                   returns real
 
 /* Internal console functions, debug */
 native function		PrintConsole	takes   string message  						returns nothing
@@ -275,10 +283,17 @@ exports
 	    Cast_I2S, 		/** val_tostringi ( v ) */
 	    Cast_R2S, 		/** val_tostringr ( v ) */
 	    Cast_B2S,		/** val_tostringb ( v ) */
+            Cast_L2S,           /** val_tostringl ( v ) */
 
 	    Cast_S2I, 		/** val_parsestri ( v ) */
 	    Cast_S2R, 		/** val_parsestrr ( v ) */
-	    Cast_S2B		/** val_parsestrb ( v ) */
+	    Cast_S2B,		/** val_parsestrb ( v ) */
+            Cast_S2L,           /** val_parsestrl ( v ) */
+
+            Cast_I2L,           /** val_inttolong ( v ) */
+            Cast_R2L,           /** val_realtolong ( v ) */
+            Cast_L2I,           /** val_longtoint ( v ) */
+            Cast_L2R            /** val_longtoreal ( v ) */
     as		root.casting
     endexports
 

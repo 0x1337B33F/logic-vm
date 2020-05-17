@@ -60,7 +60,7 @@ public class ChunkCompilerTest {
 	    fail(e.getMessage() + "\r\n" + e.toString());
 	}
 
-	Assert.assertNotEquals("no imports written", 0, allocLinkDst.importsTable.size());
+	// Assert.assertNotEquals("no imports written", 0, allocLinkDst.importsTable.size());
 	Assert.assertNotEquals("no exports written", 0, allocLinkDst.exportsTable.size());
 	Assert.assertNotEquals("no globals written", 0, allocLinkDst.globalsTable.size());
 	Assert.assertNotEquals("no types written", 0, allocLinkDst.typesTable.size());

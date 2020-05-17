@@ -101,6 +101,10 @@ public interface Opcode {
 	 */
 	REAL_LITERAL(64),
 	/**
+	 * long literal, sixty four bits
+	 */
+	LONG_LITERAL(64),
+	/**
 	 * string literal, null terminated
 	 */
 	STR_LITERAL(-1);
@@ -167,125 +171,129 @@ public interface Opcode {
 	 */
 	PUSHR(0x05, false, OpcodeArgType.listOf(OpcodeArgType.REAL_LITERAL)),
 	/**
+	 * PUSHL: push long on stack
+	 */
+	PUSHL(0x06, false, OpcodeArgType.listOf(OpcodeArgType.LONG_LITERAL)),
+	/**
 	 * PUSHS: push string on stack
 	 */
-	PUSHS(0x06, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
+	PUSHS(0x07, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
 	/**
 	 * POP: discard top of stack
 	 */
-	POP(0x07, false, null),
+	POP(0x08, false, null),
 	/**
 	 * FUNCPTR: generate function pointer to function name
 	 */
-	FUNCPTR(0x08, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
+	FUNCPTR(0x09, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
 	/**
 	 * RETN: return (flag indicates value / no value ) from function
 	 */
-	RETN(0x09, true, null),
+	RETN(0x0A, true, null),
 	/**
 	 * CALL: call function by name, num args (flag indicates mandated return yes/no)
 	 */
-	CALL(0x0A, true, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL, OpcodeArgType.INT_PACKED)),
+	CALL(0x0B, true, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL, OpcodeArgType.INT_PACKED)),
 	/**
 	 * CALLLOCAL: call function by local var user pointer, num args (flag indicates mandated return yes/no)
 	 */
-	CALLLOCAL(0x0B, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED, OpcodeArgType.INT_PACKED)),
+	CALLLOCAL(0x0C, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED, OpcodeArgType.INT_PACKED)),
 	/**
 	 * CALLGLOBAL: call function by global var user pointer, num args (flag indicates mandated return yes/no)
 	 */
-	CALLGLOBAL(0x0C, true, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL, OpcodeArgType.INT_PACKED)),
+	CALLGLOBAL(0x0D, true, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL, OpcodeArgType.INT_PACKED)),
 	/**
 	 * BINOP: do binary operation on stack (a {stack 0}, b {stack 1}) -> to stack
 	 */
-	BINOP(0x0D, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
+	BINOP(0x0E, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
 	 * UNOP: do binary operation on stack (a {stack 0}) -> to stack
 	 */
-	UNOP(0x0E, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
+	UNOP(0x0F, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
 	 * INCLOSURE: enter closure section
 	 */
-	INCLOSURE(0x0F, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
+	INCLOSURE(0x10, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
 	 * ENDCLOSURE: end closure section
 	 */
-	ENDCLOSURE(0x10, false, null),
+	ENDCLOSURE(0x11, false, null),
 	/**
 	 * NEWUPVAR: create new lvar in closure (must be INCLOSURE)
 	 */
-	NEWUPVAR(0x11, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED, OpcodeArgType.INT_PACKED)),
+	NEWUPVAR(0x12, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED, OpcodeArgType.INT_PACKED)),
 	/**
 	 * NEWARRAY: allocate new array and assign to lvar in function scope
 	 */
-	NEWARRAY(0x12, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED, OpcodeArgType.INT_PACKED)),
+	NEWARRAY(0x13, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED, OpcodeArgType.INT_PACKED)),
 	/**
 	 * SETLOCAL: set local by local number (local in closure -> local in func)
 	 */
-	SETLOCAL(0x13, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
+	SETLOCAL(0x14, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
 	 * SETGLOBAL: set global by var name
 	 */
-	SETGLOBAL(0x14, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
+	SETGLOBAL(0x15, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
 	/**
 	 * SETLOCALARR: set local array index by local number, index value on top of stack (consumed) to value on stack after consume
 	 */
-	SETLOCALARR(0x15, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
+	SETLOCALARR(0x16, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
 	 * SETGLOBALARR: set global array index by var name, index value on top of stack (consumed) to value on stack after consume
 	 */
-	SETGLOBALARR(0x16, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
+	SETGLOBALARR(0x17, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
 	/**
 	 * GETLOCAL: get value of local var by local number, put on stack
 	 */
-	GETLOCAL(0x17, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
+	GETLOCAL(0x18, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
 	 * GETGLOBAL: get global var by var name, put on stack
 	 */
-	GETGLOBAL(0x18, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
+	GETGLOBAL(0x19, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
 	/**
 	 * GETLOCALARR: get value of local var array by local number, index on top of stack -> value put on stack
 	 */
-	GETLOCALARR(0x19, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
+	GETLOCALARR(0x1A, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
 	 * GETGLOBALARR: get value of global var array by var name, index on top of stack -> value put on stack
 	 */
-	GETGLOBALARR(0x1A, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
+	GETGLOBALARR(0x1B, false, OpcodeArgType.listOf(OpcodeArgType.STR_LITERAL)),
 	/**
 	 * DEBUG: do debug on next opcode, if opcode is CALL or some decent then inherit DEBUG downwardly
 	 */
-	DEBUG(0x1B, false, null),
+	DEBUG(0x1C, false, null),
 	/**
 	 * TRY: execute all following statements until CATCH as TRY
 	 */
-	TRY(0x1C, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
+	TRY(0x1D, false, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
 	 * CATCH: first or nth CATCH block of a specified type (indicates if m_lastNode in bitmask)
 	 */
-	CATCH(0x1D, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED, OpcodeArgType.INT_PACKED)),
+	CATCH(0x1E, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED, OpcodeArgType.INT_PACKED)),
 	/**
 	 * RAISE: raise exception, whatever is on the top of the stack (may not be nothing)
 	 */
-	RAISE(0x1E, false, null),
+	RAISE(0x1F, false, null),
 	/**
 	 * CMP: compare against boolean true, store in CMP internal register
 	 */
-	CMP(0x1F, true, null),
+	CMP(0x20, true, null),
 	/**
 	 * BREAK: causes the current VM to stop executing instructions temporarily if a debugger attached, otherwise, wastes one cycle
 	 */
-	BREAK(0x20, false, null),
+	BREAK(0x21, false, null),
 	/**
 	 * YIELD: yield a value (or nothing) to the callee of the coroutine or caller
 	 */
-	YIELD(0x21, true, null),
+	YIELD(0x22, true, null),
 	/**
 	 * INCL: increment a local (integer, real) value by 1, possibly returning the value to the stack
 	 */
-	INCL(0x22, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
+	INCL(0x23, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED)),
 	/**
 	 * DECL: decrement a local (integer, real) value by 1, possibly returning the value to the stack
 	 */
-	DECL(0x23, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED));
+	DECL(0x24, true, OpcodeArgType.listOf(OpcodeArgType.INT_PACKED));
 
 	/*
 	 * we expect to be mostly doing forward lookups: don't expect the order of values() to be
@@ -605,7 +613,13 @@ public interface Opcode {
 				throw new InstantiationException(String.format("%s: Expected Double in slot %s, got %s", opcode().name(), i,
 					this.theParamValueList.get(i).getClass().getName()));
 			    break;
-			
+			    
+			case LONG_LITERAL:
+			    if (!(this.theParamValueList.get(i) instanceof Long))
+				throw new InstantiationException(String.format("%s: Expected Long in slot %s, got %s", opcode().name(), i,
+					this.theParamValueList.get(i).getClass().getName()));
+			    break;
+				
 			case STR_LITERAL:
 			    if (!(this.theParamValueList.get(i) instanceof String))
 				throw new InstantiationException(String.format("%s: Expected String in slot %s, got %s", opcode().name(), i,

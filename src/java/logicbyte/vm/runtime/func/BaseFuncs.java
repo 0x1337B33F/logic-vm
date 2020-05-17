@@ -18,13 +18,13 @@ public class BaseFuncs {
 
     @VMJFunctionLabel(name = "TypeOf")
     public static String getTypeOf(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) {
-	return vm.getJType( caller.closure(),  args[0].getClass()).name();
+	return vm.getJType(caller.closure(), args[0].getClass()).name();
     }
 
     @VMJFunctionLabel(name = "InstanceOf")
     public static boolean getInstanceOf(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) throws VMException {
-	VMType castToType = vm.getType(caller.closure(), ( String )args [1] );
-	return vm.canCastToType ( castToType, vm.getJType(caller.closure(), args[0].getClass()));
+	VMType castToType = vm.getType(caller.closure(), (String) args[1]);
+	return vm.canCastToType(castToType, vm.getJType(caller.closure(), args[0].getClass()));
     }
 
     @VMJFunctionLabel(name = "SizeOf")
@@ -49,6 +49,11 @@ public class BaseFuncs {
 	return Boolean.toString((Boolean) args[0]);
     }
 
+    @VMJFunctionLabel(name = "Cast_L2S")
+    public static String castFromLong(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) {
+	return Long.toString((Long) args[0]);
+    }
+
     @VMJFunctionLabel(name = "Cast_S2I")
     public static int castToInteger(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) {
 	return Integer.parseInt((String) args[0]);
@@ -62,6 +67,39 @@ public class BaseFuncs {
     @VMJFunctionLabel(name = "Cast_S2B")
     public static boolean castToBoolean(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) {
 	return Boolean.parseBoolean((String) args[0]);
+    }
+
+    @VMJFunctionLabel(name = "Cast_S2L")
+    public static long castToLong(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) {
+	return Long.parseLong((String) args[0]);
+    }
+
+    @VMJFunctionLabel(name = "Cast_I2L")
+    public static long castIntegerToLong(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) {
+	return ((Integer) args[0]).longValue();
+    }
+
+    @VMJFunctionLabel(name = "Cast_R2L")
+    public static long castRealToLong(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) {
+	return ((Double) args[0]).longValue();
+    }
+
+    @VMJFunctionLabel(name = "Cast_L2I")
+    public static int castLongToIntegerWorded(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) {
+	Long l0 = (Long) args[0];
+	if ((boolean) args[1])
+	    return (Integer) ((Long) (Long.rotateRight(l0, 32) & (long) 0x00000000FFFFFFFF)).intValue();
+	else
+	    return (Integer) ((Long) (l0 & (long) 0x00000000FFFFFFFF)).intValue();
+    }
+
+    @VMJFunctionLabel(name = "Cast_L2R")
+    public static double castLongToRealWorded(LogicVM vm, VMInvokable executor, VMFunction caller, VMDebugCallback debug, Object[] args) {
+	Long l0 = (Long) args[0];
+	if ((boolean) args[1])
+	    return (Double) ((Long) (Long.rotateRight(l0, 32) & (long) 0x00000000FFFFFFFF)).doubleValue();
+	else
+	    return (Double) ((Long) (l0 & (long) 0x00000000FFFFFFFF)).doubleValue();
     }
 
     @VMJFunctionLabel(name = "Str_IndexOf")

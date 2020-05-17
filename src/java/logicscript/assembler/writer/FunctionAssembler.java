@@ -1281,6 +1281,8 @@ public class FunctionAssembler {
 		output(new OpcodeControlBitmask(Opcodes.PUSHI, newlist(lv.valueObject)), lv.location);
 	    else if (lv.typeOfValue == TypeDecl.TYPE_REAL)
 		output(new OpcodeControlBitmask(Opcodes.PUSHR, newlist(lv.valueObject)), lv.location);
+	    else if (lv.typeOfValue == TypeDecl.TYPE_LONG)
+		output( new OpcodeControlBitmask(Opcodes.PUSHL, newlist(lv.valueObject)), lv.location);
 	    else if (lv.typeOfValue == TypeDecl.TYPE_STRING)
 		output(new OpcodeControlBitmask(Opcodes.PUSHS, newlist(lv.valueObject)), lv.location);
 	    else

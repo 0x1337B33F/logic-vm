@@ -28,7 +28,7 @@ public class AssemblyDumperTest {
 	FileInputStream fis = null;
 
 	try {
-	    LinkerObjectInputStream is = new LinkerObjectInputStream(fis = new FileInputStream(new File("out", "root.o")), "root");
+	    LinkerObjectInputStream is = new LinkerObjectInputStream(fis = new FileInputStream(new File("out", "test.o")), "test");
 	    dumpLinkerObj = is.readLinkerObject();
 	    fis.close();
 	} catch (IOException e) {
@@ -37,7 +37,7 @@ public class AssemblyDumperTest {
 	}
 
 	try {
-	    LogicBytecodeInputStream is = new LogicBytecodeInputStream(fis = new FileInputStream(new File("out", "root.lb")), "root");
+	    LogicBytecodeInputStream is = new LogicBytecodeInputStream(fis = new FileInputStream(new File("out", "test.lb")), "test");
 	    dumpBytecodeObj = is.readBytecodeFile();
 	    fis.close();
 	} catch (IOException e) {

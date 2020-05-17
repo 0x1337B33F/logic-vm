@@ -191,6 +191,7 @@ public class LogicBytecodeValidator {
 		case PUSHB:
 		case PUSHI:
 		case PUSHR:
+		case PUSHL:
 		case PUSHS:
 		case FUNCPTR:
 		case CATCH:

@@ -268,6 +268,8 @@ public class BaseLogicVMInstance implements LogicVM {
 	    return BaseVMPrimitiveType.TYPE_INTEGER;
 	if (klazz == Double.class || klazz == double.class)
 	    return BaseVMPrimitiveType.TYPE_REAL;
+	if (klazz == Long.class || klazz == long.class)
+	    return BaseVMPrimitiveType.TYPE_LONG;
 	if (klazz == String.class)
 	    return BaseVMPrimitiveType.TYPE_STRING;
 
@@ -385,6 +387,8 @@ public class BaseLogicVMInstance implements LogicVM {
 	    return BaseVMPrimitiveType.TYPE_INTEGER;
 	if (Double.class.isAssignableFrom(klazz) || klazz.equals(double.class))
 	    return BaseVMPrimitiveType.TYPE_REAL;
+	if (Long.class.isAssignableFrom(klazz) || klazz.equals(long.class))
+	    return BaseVMPrimitiveType.TYPE_LONG;
 	if (String.class.isAssignableFrom(klazz))
 	    return BaseVMPrimitiveType.TYPE_STRING;
 
