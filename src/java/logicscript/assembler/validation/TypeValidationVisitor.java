@@ -16,6 +16,11 @@ import logicscript.ast.nodes.importexport.LibraryReference;
 import logicscript.ast.nodes.importexport.LibraryReference.LibraryReferenceType;
 import logicscript.ast.nodes.stmt.Block;
 
+// FIXME: there are two problems here; the first is that the 
+// types are dyamically linked and not statically linked; the
+// second is that a reset() is needed for each compile pass of
+// each script, since each script has its own set of IMPORT/EXPORT
+// stanzas
 public class TypeValidationVisitor extends VoidAssemblerASTVisitor {
 
     volatile Chunk generatedDecl;

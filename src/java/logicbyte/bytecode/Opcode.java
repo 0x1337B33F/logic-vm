@@ -19,7 +19,7 @@ import java.util.List;
  * @author Lochie
  */
 public interface Opcode {
-    
+
     public Opcodes opcode();
 
     /**
@@ -127,15 +127,15 @@ public interface Opcode {
 	 * the bitwidth of the argument type, if known and fixed
 	 */
 	final int numberOfBitsWidth;
-	
+
 	OpcodeArgType(int w) {
 	    this.numberOfBitsWidth = w;
 	}
-	
+
 	boolean isFixedWidth() {
 	    return this.numberOfBitsWidth > 0;
 	}
-	
+
 	int getFixedBitWidth() {
 	    return this.numberOfBitsWidth;
 	}
@@ -301,15 +301,15 @@ public interface Opcode {
 	 * return the collection in the defined enum order).
 	 */
 	private static HashMap<Integer, Opcodes> opcodeLookupTable;
-	
+
 	public static Opcodes lookupBaseOpcode(byte opword) {
 	    return opcodeLookupTable.get((int) opword);
 	}
-	
+
 	public static Opcodes lookupBaseOpcode(String memonic) {
 	    return Opcodes.valueOf(memonic);
 	}
-	
+
 	public static void introduceOpcodeImpl(Opcodes theImplRef) {
 	    // ... but it's a compiler check, so just move it somewhere else
 	    // and it's really none the wiser.... :->
@@ -317,7 +317,7 @@ public interface Opcode {
 		Opcodes.opcodeLookupTable = new HashMap<>();
 	    Opcodes.opcodeLookupTable.put((int) theImplRef.typeword, theImplRef);
 	}
-	
+
 	public static final byte BITMASK_BIT_0 = 0b00000001;
 	public static final byte BITMASK_BIT_1 = 0b00000010;
 	public static final byte BITMASK_BIT_2 = 0b00000100;
@@ -468,7 +468,7 @@ public interface Opcode {
 	 * If the opcode has argument(s), what the data type shall be; or null
 	 */
 	final List<OpcodeArgType> args;
-	
+
 	Opcodes(int typeword, boolean mask, List<OpcodeArgType> args) {
 	    this.typeword = (byte) typeword;
 	    this.hasMask = mask;
@@ -480,40 +480,40 @@ public interface Opcode {
 	     */
 	    Opcodes.introduceOpcodeImpl(this);
 	}
-	
+
 	@Override
 	public Opcodes opcode() {
 	    return this;
 	}
-	
+
 	public boolean hasopts() {
 	    return hasMask;
 	}
-	
+
 	public byte getopts() {
 	    throw new IllegalStateException(String.format("%s: Not a instance-value specific container of an opcode", name()));
 	}
-	
+
 	public boolean getopt(byte mask) {
 	    throw new IllegalStateException(String.format("%s: Not a instance-value specific container of an opcode", name()));
 	}
-	
+
 	public byte getword() {
 	    return this.typeword;
 	}
-	
+
 	public int args() {
 	    return (this.args != null) ? this.args.size() : -1;
 	}
-	
+
 	public OpcodeArgType argtype(int slot) {
 	    return (this.args != null) ? this.args.get(slot) : null;
 	}
-	
+
 	public Object argobject(int slot) {
 	    throw new IllegalStateException(String.format("%s: Not a instance-value specific container of an opcode", name()));
 	}
-	
+
     }
 
     /**
@@ -528,21 +528,21 @@ public interface Opcode {
 	byte theMaskNibble;
 	// the param values, if any are set
 	List<Object> theParamValueList;
-	
+
 	public OpcodeControlBitmask(Opcode theTypeOfOpcodeReal, List<Object> theParamValues) throws InstantiationException {
 	    this(theTypeOfOpcodeReal, (byte) 0x00, theParamValues);
 	}
-	
+
 	public OpcodeControlBitmask(Opcode theTypeOfOpcodeReal, byte theMaskNibble) throws InstantiationException {
 	    this(theTypeOfOpcodeReal, theMaskNibble, null);
 	}
-	
+
 	public OpcodeControlBitmask(Opcode theTypeOfOpcodeReal, byte theMaskNibble, List<Object> theParamValues) throws InstantiationException {
 	    super();
 	    this.baseOp = theTypeOfOpcodeReal;
 	    this.theMaskNibble = theMaskNibble;
 	    this.theParamValueList = theParamValues;
-	    
+
 	    if (baseOp.hasopts()) {
 		int allowMask = 0x00;
 		switch (baseOp.opcode()) {
@@ -585,7 +585,7 @@ public interface Opcode {
 			    (theMaskNibble & (~allowMask))));
 	    } else if (theMaskNibble != 0x00)
 		throw new InstantiationException(String.format("%s: Mask bits not supported", baseOp.opcode().name()));
-	    
+
 	    if (this.args() > 0) {
 		if (this.theParamValueList == null || this.theParamValueList.isEmpty())
 		    throw new InstantiationException(String.format("%s: Opcode requires %s arguments", baseOp.opcode().name(), this.args()));
@@ -607,19 +607,19 @@ public interface Opcode {
 					format("%s: Expected Integer in slot %s, got %s", opcode().name(), i,
 						this.theParamValueList.get(i).getClass().getName()));
 			    break;
-			
+
 			case REAL_LITERAL:
 			    if (!(this.theParamValueList.get(i) instanceof Double))
 				throw new InstantiationException(String.format("%s: Expected Double in slot %s, got %s", opcode().name(), i,
 					this.theParamValueList.get(i).getClass().getName()));
 			    break;
-			    
+
 			case LONG_LITERAL:
 			    if (!(this.theParamValueList.get(i) instanceof Long))
 				throw new InstantiationException(String.format("%s: Expected Long in slot %s, got %s", opcode().name(), i,
 					this.theParamValueList.get(i).getClass().getName()));
 			    break;
-				
+
 			case STR_LITERAL:
 			    if (!(this.theParamValueList.get(i) instanceof String))
 				throw new InstantiationException(String.format("%s: Expected String in slot %s, got %s", opcode().name(), i,
@@ -628,75 +628,75 @@ public interface Opcode {
 		    }
 	    }
 	}
-	
+
 	@Override
 	public Opcodes opcode() {
 	    return (baseOp instanceof Opcodes) ? (Opcodes) baseOp : baseOp.opcode();
 	}
-	
+
 	public boolean hasopts() {
 	    return baseOp.hasopts();
 	}
-	
+
 	public byte getopts() {
 	    return theMaskNibble;
 	}
-	
+
 	public boolean getopt(byte mask) {
 	    return (theMaskNibble & mask) != 0;
 	}
-	
+
 	public byte getword() {
 	    return baseOp.getword();
 	}
-	
+
 	public int args() {
 	    return baseOp.args();
 	}
-	
+
 	public OpcodeArgType argtype(int slot) {
 	    return baseOp.argtype(slot);
 	}
-	
+
 	public Object argobject(int slot) {
 	    return (theParamValueList != null) ? theParamValueList.get(slot) : null;
 	}
-	
+
     }
 
     // extension of the value box type which allows the value of integer values
     // to be deferred to a 'label memory address location' instead of a value
     // already known
     public class OpcodeControlBitmaskLabel extends OpcodeControlBitmask {
-	
+
 	List<String> theParamLabelList;
-	
+
 	public OpcodeControlBitmaskLabel(Opcode theTypeOfOpcodeReal, List<Object> theParamValues, List<String> theParamLabels)
 		throws InstantiationException {
 	    super(theTypeOfOpcodeReal, (byte) 0x00, theParamValues);
 	    this.theParamLabelList = theParamLabels;
 	}
-	
+
 	public OpcodeControlBitmaskLabel(Opcode theTypeOfOpcodeReal, byte theMaskNibble)
 		throws InstantiationException {
 	    super(theTypeOfOpcodeReal, theMaskNibble, null);
 	}
-	
+
 	public OpcodeControlBitmaskLabel(Opcode theTypeOfOpcodeReal, byte theMaskNibble, List<Object> theParamValues,
 		List<String> theParamLabels)
 		throws InstantiationException {
 	    super(theTypeOfOpcodeReal, theMaskNibble, theParamValues);
 	    this.theParamLabelList = theParamLabels;
 	}
-	
+
 	public String arglabel(int slot) {
 	    return (theParamLabelList != null) ? theParamLabelList.get(slot) : null;
 	}
-	
+
 	public void setargobject(int slot, Object val) {
 	    theParamValueList.set(slot, val);
 	}
-	
+
     }
-    
+
 }

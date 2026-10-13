@@ -496,7 +496,7 @@ public class LogicBytecodeFile {
 		throw new IllegalStateException("types and arrays must be of same dimension");
 	    this.localTypes = types;
 	    this.localArrays = arrays;
-	    this.numLocalTypes = (this.localTypes != null) ? this.localTypes.length : 0;
+	    this.numLocalTypes = (this.localTypes != null && this.localTypes.length > 0) ? this.localTypes.length : 0;
 	    setmaskflag();
 	}
 

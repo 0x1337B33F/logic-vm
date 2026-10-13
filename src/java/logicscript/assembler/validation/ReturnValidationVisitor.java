@@ -20,6 +20,9 @@ import logicscript.ast.nodes.stmt.cfl.ReturnStatement;
 import logicscript.ast.nodes.stmt.cfl.TryCatchStatement;
 import logicscript.ast.nodes.stmt.ef.DebugStatement;
 
+// FIXME: finish connecting this arm to the torso; right now
+// you can do janky things with RETURN op which will surely
+// break the VM entirely.
 public class ReturnValidationVisitor extends VoidAssemblerASTVisitor {
 
     public static class FunctionReturnPathInfo {

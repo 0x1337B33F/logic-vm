@@ -369,16 +369,22 @@ public class LogicBytecodeValidator {
 	    switch (asEnum) {
 
 		case CALLLOCAL:
-		case GETLOCAL:
-		    int get = (int) op.argobject(0);
-		    if (get < startFuncLocals)
-			break;
-		    obj = localStack.get(idx = (localStack.size() - 1));
-		    while (get < obj.a())
-			obj = localStack.get(--idx);
-		    if (!obj.b().get(get - obj.a()))
+		case GETLOCAL: {
+		    try {
+			int get = (int) op.argobject(0);
+			if (get < startFuncLocals)
+			    break;
+			obj = localStack.get(idx = (localStack.size() - 1));
+			while (get < obj.a())
+			    obj = localStack.get(--idx);
+			if (!obj.b().get(get - obj.a()))
+			    throw new IllegalOperandException(decl, i, op, "dereference of undefined local");
+		    } catch (IndexOutOfBoundsException ioobe) {
+			// FIXME: should we pass the inner exception on to avoid nightmares later?
 			throw new IllegalOperandException(decl, i, op, "dereference of undefined local");
-		    break;
+		    }
+		}
+		break;
 
 		case INCLOSURE:
 		    obj = localStack.peek();

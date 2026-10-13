@@ -9,6 +9,7 @@ import logicbyte.bytecode.Opcode;
 import logicbyte.bytecode.Opcode.OpcodeControlBitmask;
 import logicbyte.bytecode.Opcode.Opcodes;
 import logicbyte.bytecode.validate.LogicBytecodeValidator;
+import logicscript.assembler.FunctionBytecodeTransformer;
 import logicscript.ast.Chunk;
 import logicscript.ast.nodes.decl.FunctionDecl;
 import logicscript.ast.nodes.decl.FunctionDecl.FunctionDeclType;
@@ -63,6 +64,10 @@ public class ChunkAssembler {
      */
     public void setShouldGenerateDebugSymbols(boolean b) {
 	this.functionMachine.setShouldGenerateDebugSymbols(b);
+    }
+    
+    public void addFunctionAssemblyTransformer(FunctionBytecodeTransformer impl) {
+	this.functionMachine.addFunctionAssemblyTransformer(impl);
     }
 
     public void setLog(Log l) {
@@ -186,6 +191,10 @@ public class ChunkAssembler {
 	if (codeChunk.globalsDecls != null && !codeChunk.globalsDecls.isEmpty()) {
 	    log.trace("generating globals init function...");
 	    FunctionDecl globalInitFn = null;
+	    
+	    if ( codeChunk.ufuncDecls == null ) 
+		codeChunk.ufuncDecls = new LinkedList<>();
+	    
 	    Iterator<FunctionDecl> itx = codeChunk.ufuncDecls.iterator();
 	    while (itx.hasNext()) {
 		FunctionDecl decl = itx.next();

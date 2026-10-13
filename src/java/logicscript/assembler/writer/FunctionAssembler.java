@@ -61,6 +61,7 @@ import logicscript.ast.nodes.stmt.ef.FunctionCallVarStatement;
 import logicscript.ast.nodes.stmt.ef.SetArrayVariableStatement;
 import logicscript.ast.nodes.stmt.ef.SetVariableStatement;
 import logictype.BiDiMap;
+import logictype.LangUtils;
 import logictype.Log;
 import logictype.Pair;
 import logictype.Tuple;
@@ -210,9 +211,9 @@ public class FunctionAssembler {
 	    /**
 	     * Value box object constructor
 	     *
-	     * @param theBaseType        The base type singleton
+	     * @param theBaseType The base type singleton
 	     * @param theLabelOfTheBlock The label which has been assigned to the generated block; the label may be the begin or end label
-	     *                           depending on the type of the block
+	     * depending on the type of the block
 	     */
 	    public BlockTypeLabel(BlockType theBaseType, String theLabelOfTheBlock) {
 		this.baseType = theBaseType;
@@ -285,7 +286,7 @@ public class FunctionAssembler {
 	     * @param s Name of var
 	     *
 	     * @return Whether the var is not yet defined as an lvar in the current scope; does not compute if the name shall shadow an
-	     *         already defined name
+	     * already defined name
 	     */
 	    boolean checkname_distinct(String s) {
 		return (slot(s) == -1);
@@ -297,7 +298,7 @@ public class FunctionAssembler {
 	     * @param s Name of var
 	     *
 	     * @return local vars slot of closure-temp var, or <code>-1</code> if undefined lvar name in local scope; does not check higher
-	     *         level closure(s) for existing lvar
+	     * level closure(s) for existing lvar
 	     */
 	    int slot(String s) {
 		if (count == 0)
@@ -448,23 +449,19 @@ public class FunctionAssembler {
 	/**
 	 * Begins assembly of the provided {@link FunctionDecl} to the output tape.
 	 *
-	 * @param typeMachine    The type assembler instance.
-	 * @param linker         The destination linker struct.
+	 * @param typeMachine The type assembler instance.
+	 * @param linker The destination linker struct.
 	 * @param declaringChunk The AST chunk which defined the FunctionDecl.
-	 * @param function       The FunctionDecl to assemble.
+	 * @param function The FunctionDecl to assemble.
 	 *
 	 * @return If the function was successfully assembled; depending on the type of function, a number of opcodes may reside on the
-	 *         output tape.
+	 * output tape.
 	 *
 	 * @throws java.lang.InstantiationException
 	 * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
 	 * @throws logicscript.assembler.writer.FunctionAssembler.FunctionAssemblySourceException If the function machine is in an invalid
-	 *                                                                                        state, or, if the function statements are
-	 *                                                                                        not acceptable, or, should some other
-	 *                                                                                        assembly exception occur, one of
-	 *                                                                                        {@link IllegalStateException} or
-	 *                                                                                        {@link FunctionAssemblySourceException}
-	 *                                                                                        will be thrown.
+	 * state, or, if the function statements are not acceptable, or, should some other assembly exception occur, one of
+	 * {@link IllegalStateException} or {@link FunctionAssemblySourceException} will be thrown.
 	 */
 	boolean emit(TypeAssembler typeMachine, LinkerObjectFile linker, Chunk declaringChunk, FunctionDecl function)
 		throws IllegalStateException, InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
@@ -483,9 +480,9 @@ public class FunctionAssembler {
 	    m_generatedFunctionClosure.count = m_generatedFunctionClosure.start = 0;
 
 	    // gobble memory:
-	    m_generatedFunctionClosure.names = new String[ s_maxFuncClosureVars ];
-	    m_generatedFunctionClosure.types = new int[ s_maxFuncClosureVars ];
-	    m_generatedFunctionClosure.arrays = new boolean[ s_maxFuncClosureVars ];
+	    m_generatedFunctionClosure.names = new String[s_maxFuncClosureVars];
+	    m_generatedFunctionClosure.types = new int[s_maxFuncClosureVars];
+	    m_generatedFunctionClosure.arrays = new boolean[s_maxFuncClosureVars];
 
 	    // The params become the first function closure value(s): 
 	    if (function.paramNames != null || function.paramTypes != null)
@@ -500,8 +497,8 @@ public class FunctionAssembler {
 		    Iterator< TypeDecl> itx1 = function.paramTypes.iterator();
 		    Iterator< Boolean> itx2 = function.paramArrays.iterator();
 
-		    int[] paramTypeNumberTable = new int[ function.paramTypes.size() ];
-		    boolean[] paramArrayTable = new boolean[ function.paramTypes.size() ];
+		    int[] paramTypeNumberTable = new int[function.paramTypes.size()];
+		    boolean[] paramArrayTable = new boolean[function.paramTypes.size()];
 		    int i = 0;
 		    while (itx.hasNext() && itx1.hasNext() && itx2.hasNext()) {
 			String nameOfParam = itx.next();
@@ -533,8 +530,8 @@ public class FunctionAssembler {
 	    if (function.lvars != null && !function.lvars.isEmpty()) {
 		m_logger.trace("assembling function locals: %s locals", function.lvars.size());
 		Iterator<FunctionLVarDecl> itx = function.lvars.iterator();
-		int[] localTypeNumberTable = new int[ function.lvars.size() ];
-		boolean[] localArrayTypeTable = new boolean[ function.lvars.size() ];
+		int[] localTypeNumberTable = new int[function.lvars.size()];
+		boolean[] localArrayTypeTable = new boolean[function.lvars.size()];
 		int i = 0;
 		while (itx.hasNext()) {
 		    FunctionLVarDecl decl = itx.next();
@@ -558,11 +555,11 @@ public class FunctionAssembler {
 			if (decl.isArrayType) {
 			    m_logger.trace("assembling function local %s array initializer", ptr);
 			    emitOpcodesExpression(typeMachine, linker, declaringChunk, function, function.block, decl.initialRhs);
-			    output(new OpcodeControlBitmask(Opcodes.NEWARRAY, newlist(numberOfTypeOfLocal, ptr)));
+			    output(new OpcodeControlBitmask(Opcodes.NEWARRAY, LangUtils.newlist(numberOfTypeOfLocal, ptr)));
 			} else {
 			    m_logger.trace("assembling function local %s literal initializer", ptr);
 			    emitOpcodesExpression(typeMachine, linker, declaringChunk, function, function.block, decl.initialRhs);
-			    output(new OpcodeControlBitmask(Opcodes.SETLOCAL, newlist(ptr)));
+			    output(new OpcodeControlBitmask(Opcodes.SETLOCAL, LangUtils.newlist(ptr)));
 			}
 		    }
 		}
@@ -578,7 +575,7 @@ public class FunctionAssembler {
 		m_generatingFunctionDebugObj = new DebugSegment();
 		if (function.paramNames != null && !function.paramNames.isEmpty()) {
 		    m_logger.trace("assembling function debugging parameter name table");
-		    String[] paramNameTable = new String[ function.paramNames.size() ];
+		    String[] paramNameTable = new String[function.paramNames.size()];
 		    for (int i = 0, j = paramNameTable.length; i < j; i++)
 			paramNameTable[i] = function.paramNames.get(i);
 		    m_generatingFunctionDebugObj.setargnames(paramNameTable);
@@ -586,7 +583,7 @@ public class FunctionAssembler {
 
 		if (function.lvars != null && !function.lvars.isEmpty()) {
 		    m_logger.trace("assembling function debugging local name table");
-		    String[] lvarsNameTable = new String[ function.lvars.size() ];
+		    String[] lvarsNameTable = new String[function.lvars.size()];
 		    for (int i = 0, j = lvarsNameTable.length; i < j; i++)
 			lvarsNameTable[i] = function.lvars.get(i).nameOfLocalVar;
 		    m_generatingFunctionDebugObj.setlocalnames(lvarsNameTable);
@@ -614,11 +611,16 @@ public class FunctionAssembler {
 		    Iterator<FunctionBytecodeTransformer> itx = m_transformers.iterator();
 		    while (itx.hasNext()) {
 			FunctionBytecodeTransformer transformer = itx.next();
-			transformer.apply(
-				m_generatingFunctionObj,
-				m_generatingFunctionDebugObj,
-				m_generatedObjectList
-			);
+			try {
+			    transformer.apply(
+				    m_generatingFunctionObj,
+				    m_generatingFunctionDebugObj,
+				    m_generatedObjectList,
+				    m_logger
+			    );
+			} catch (Exception e) {
+			    throw new IllegalStateException("Transformer has thrown Exception; output tape is corrupt.", e);
+			}
 		    }
 		    m_logger.trace("done running bytecode transformers");
 		}
@@ -626,6 +628,7 @@ public class FunctionAssembler {
 		List<Tuple< Integer, Opcode, DebugLocationSegment>> ops = new LinkedList<>();
 		Map<String, Integer> labelTable = new HashMap<>();
 
+		// FIXME: abuse of Java closure ({}) operator
 		{
 		    m_logger.trace("computing label location table");
 		    Iterator< Pair< Object, DebugLocationSegment>> itx = m_generatedObjectList.iterator();
@@ -670,14 +673,18 @@ public class FunctionAssembler {
 		for (int i = ops.size() - 1; i >= 0; i--) {
 		    Tuple< Integer, Opcode, DebugLocationSegment> op = ops.get(i);
 		    Opcodes theRealOp = op.b().opcode();
-		    if (theRealOp == Opcodes.ENDCLOSURE)
+		    if (theRealOp == Opcodes.ENDCLOSURE) {
+			m_logger.trace("exiting closure %s, %s, %s", op.a(), op.b(), op.c());
 			closureScopeStack.push(op.a());
-		    else if (theRealOp == Opcodes.INCLOSURE)
+		    } else if (theRealOp == Opcodes.INCLOSURE) {
+			int scopeStack = closureScopeStack.pop();
+			m_logger.trace("entering closure %s (depth: %s) %s %s", op.a(), scopeStack, op.b(), op.c());
 			ops.set(i, new Tuple<>(
 				op.a(),
-				new OpcodeControlBitmask(Opcodes.INCLOSURE, newlist(closureScopeStack.pop())),
+				new OpcodeControlBitmask(Opcodes.INCLOSURE, LangUtils.newlist(scopeStack)),
 				op.c()
 			));
+		    }
 		}
 
 		m_logger.trace("moving finalized opcodes to output tape");
@@ -699,8 +706,8 @@ public class FunctionAssembler {
 			}
 		    }
 
-		    int[] addrTable = new int[ addrList.size() ];
-		    DebugLocationSegment[] locTable = new DebugLocationSegment[ addrList.size() ];
+		    int[] addrTable = new int[addrList.size()];
+		    DebugLocationSegment[] locTable = new DebugLocationSegment[addrList.size()];
 		    for (int j = 0, k = addrTable.length; j < k; j++) {
 			addrTable[j] = addrList.get(j);
 			locTable[j] = locList.get(j);
@@ -757,7 +764,7 @@ public class FunctionAssembler {
 	    if (s instanceof ControlFlowStatement) {
 		if (s instanceof IfStatement) {
 		    final String exitifl = label("IF_ENDIF");
-		    List<String> exitlabel = newstringlist(exitifl);
+		    List<String> exitlabel = LangUtils.newstringlist(exitifl);
 
 		    Expression ifExpr = ((IfStatement) s).conditionalExpr;
 		    if (ifExpr instanceof LiteralValue) {
@@ -778,13 +785,15 @@ public class FunctionAssembler {
 
 			output(new OpcodeControlBitmask(Opcodes.CMP, Opcodes.BITMASK_CMP_CONSUME), ifExpr.location);
 			output(new OpcodeControlBitmaskLabel(Opcodes.JMP, (byte) (Opcodes.BITMASK_JMP_AORO | Opcodes.BITMASK_JMP_JCJF),
-				newlist(-1), newstringlist(exitl)));
+				LangUtils.newlist(-1), LangUtils.newstringlist(exitl)));
 
 			if (!emitOpcodesBlock(typeMachine, linker, declaringChunk, fnDecl, ((IfStatement) s).thenBlock))
 			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
 				    "emitOpcodesStatement: ifexpr then statements not written");
-
-			output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, newlist(-1), exitlabel));
+			
+			if ( ((IfStatement) s).elseIfCondExprs != null ||
+				    ((IfStatement) s).elseBlock != null )
+			    output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, LangUtils.newlist(-1), exitlabel));
 			output(exitl);
 
 			endblocktag(BlockType.IF);
@@ -818,12 +827,12 @@ public class FunctionAssembler {
 					    "emitOpcodesStatement: ifexpr elseif conditional not on stack");
 				output(new OpcodeControlBitmask(Opcodes.CMP, Opcodes.BITMASK_CMP_CONSUME), elseIfExpr.location);
 				output(new OpcodeControlBitmaskLabel(Opcodes.JMP,
-					(byte) (Opcodes.BITMASK_JMP_AORO | Opcodes.BITMASK_JMP_JCJF), newlist(-1),
-					newstringlist(exitl)));
+					(byte) (Opcodes.BITMASK_JMP_AORO | Opcodes.BITMASK_JMP_JCJF), LangUtils.newlist(-1),
+					LangUtils.newstringlist(exitl)));
 				if (!emitOpcodesBlock(typeMachine, linker, declaringChunk, fnDecl, itx1.next()))
 				    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
 					    "emitOpcodesStatement: ifexpr elseif-then statements not written");
-				output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, newlist(-1), exitlabel));
+				output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, LangUtils.newlist(-1), exitlabel));
 				output(exitl);
 				endblocktag(BlockType.ELSEIF);
 			    }
@@ -850,7 +859,7 @@ public class FunctionAssembler {
 
 		    int incrementorSlot = newclosurevar(typeMachine, forStmt.local, TypeDecl.TYPE_INTEGER, forStmt.location);
 		    emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, forStmt.startExpr);
-		    output(new OpcodeControlBitmask(Opcodes.SETLOCAL, newlist(incrementorSlot)), forStmt.location);
+		    output(new OpcodeControlBitmask(Opcodes.SETLOCAL, LangUtils.newlist(incrementorSlot)), forStmt.location);
 
 		    String startl = label("FOR_ORIGIN");
 		    String endl = label("FOR_EXIT");
@@ -866,22 +875,22 @@ public class FunctionAssembler {
 			    int valueOfLiteral = (int) lv.valueObject;
 			    if (valueOfLiteral == 1) {
 				useINCLDECLop = true;
-				output(new OpcodeControlBitmask(Opcodes.INCL, Opcodes.BITMASK_INCL_POST, newlist(incrementorSlot)));
+				output(new OpcodeControlBitmask(Opcodes.INCL, Opcodes.BITMASK_INCL_POST, LangUtils.newlist(incrementorSlot)));
 			    } else if (valueOfLiteral == -1) {
 				useINCLDECLop = true;
-				output(new OpcodeControlBitmask(Opcodes.DECL, Opcodes.BITMASK_DECL_POST, newlist(incrementorSlot)));
+				output(new OpcodeControlBitmask(Opcodes.DECL, Opcodes.BITMASK_DECL_POST, LangUtils.newlist(incrementorSlot)));
 			    } else
-				output(new OpcodeControlBitmask(Opcodes.PUSHI, newlist(lv.valueObject)), forStmt.location);
+				output(new OpcodeControlBitmask(Opcodes.PUSHI, LangUtils.newlist(lv.valueObject)), forStmt.location);
 			} else if (lv.typeOfValue == TypeDecl.TYPE_REAL) {
 			    double valueOfLiteral = (double) lv.valueObject;
 			    if (valueOfLiteral == 1.0d) {
 				useINCLDECLop = true;
-				output(new OpcodeControlBitmask(Opcodes.INCL, Opcodes.BITMASK_INCL_POST, newlist(incrementorSlot)));
+				output(new OpcodeControlBitmask(Opcodes.INCL, Opcodes.BITMASK_INCL_POST, LangUtils.newlist(incrementorSlot)));
 			    } else if (valueOfLiteral == -1.0d) {
 				useINCLDECLop = true;
-				output(new OpcodeControlBitmask(Opcodes.DECL, Opcodes.BITMASK_DECL_POST, newlist(incrementorSlot)));
+				output(new OpcodeControlBitmask(Opcodes.DECL, Opcodes.BITMASK_DECL_POST, LangUtils.newlist(incrementorSlot)));
 			    } else
-				output(new OpcodeControlBitmask(Opcodes.PUSHR, newlist(lv.valueObject)), forStmt.location);
+				output(new OpcodeControlBitmask(Opcodes.PUSHR, LangUtils.newlist(lv.valueObject)), forStmt.location);
 			} else
 			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
 				    "emitOpcodesStatement: for incrementor literal not integer or real type");
@@ -889,31 +898,31 @@ public class FunctionAssembler {
 			emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, forStmt.byExpr);
 
 		    if (!useINCLDECLop) {
-			output(new OpcodeControlBitmask(Opcodes.GETLOCAL, newlist(incrementorSlot)));
-			output(new OpcodeControlBitmask(Opcodes.BINOP, newlist(BinaryExpressionParamValueTable.NUM_ADD.value())),
+			output(new OpcodeControlBitmask(Opcodes.GETLOCAL, LangUtils.newlist(incrementorSlot)));
+			output(new OpcodeControlBitmask(Opcodes.BINOP, LangUtils.newlist(BinaryExpressionParamValueTable.NUM_ADD.value())),
 				forStmt.location);
 			output(Opcodes.DUP, forStmt.location);
-			output(new OpcodeControlBitmask(Opcodes.SETLOCAL, newlist(incrementorSlot)), forStmt.location);
+			output(new OpcodeControlBitmask(Opcodes.SETLOCAL, LangUtils.newlist(incrementorSlot)), forStmt.location);
 		    }
 
 		    if (forStmt.endExpr instanceof LiteralValue) {
 			LiteralValue lv = (LiteralValue) forStmt.endExpr;
 			if (lv.typeOfValue == TypeDecl.TYPE_INTEGER)
-			    output(new OpcodeControlBitmask(Opcodes.PUSHI, newlist(lv.valueObject)), forStmt.location);
+			    output(new OpcodeControlBitmask(Opcodes.PUSHI, LangUtils.newlist(lv.valueObject)), forStmt.location);
 			else if (lv.typeOfValue == TypeDecl.TYPE_REAL)
-			    output(new OpcodeControlBitmask(Opcodes.PUSHR, newlist(lv.valueObject)), forStmt.location);
+			    output(new OpcodeControlBitmask(Opcodes.PUSHR, LangUtils.newlist(lv.valueObject)), forStmt.location);
 			else
 			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
 				    "emitOpcodesStatement: for end literal not integer or real type");
 		    } else
 			emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, forStmt.endExpr);
 
-		    output(new OpcodeControlBitmask(Opcodes.BINOP, newlist(BinaryExpressionParamValueTable.VAL_EQ.value())),
+		    output(new OpcodeControlBitmask(Opcodes.BINOP, LangUtils.newlist(BinaryExpressionParamValueTable.VAL_EQ.value())),
 			    forStmt.location);
 		    output(new OpcodeControlBitmask(Opcodes.CMP, Opcodes.BITMASK_CMP_CONSUME), forStmt.location);
 		    List<String> labelList = new LinkedList<>();
 		    labelList.add(startl);
-		    output(new OpcodeControlBitmaskLabel(Opcodes.JMP, (byte) (Opcodes.BITMASK_JMP_AORO | Opcodes.BITMASK_JMP_JCJF), newlist(
+		    output(new OpcodeControlBitmaskLabel(Opcodes.JMP, (byte) (Opcodes.BITMASK_JMP_AORO | Opcodes.BITMASK_JMP_JCJF), LangUtils.newlist(
 			    -1), labelList), forStmt.location);
 		    output(endl);
 
@@ -928,7 +937,7 @@ public class FunctionAssembler {
 		    m_generatedLoopLabelStack.push(exitLabel);
 		    output(startLabel);
 		    emitOpcodesBlock(typeMachine, linker, declaringChunk, fnDecl, ((LoopStatement) s).statements);
-		    output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, newlist(-1), newstringlist(startLabel)),
+		    output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, LangUtils.newlist(-1), LangUtils.newstringlist(startLabel)),
 			    ((LoopStatement) s).location);
 		    output(exitLabel);
 		    if (!m_generatedLoopLabelStack.pop().equals(exitLabel))
@@ -949,21 +958,21 @@ public class FunctionAssembler {
 			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
 				    "emitOpcodesStatement: exitwhen conditional literal not type=BOOLEAN");
 			if (lv.valueObject == LiteralValue.VALUE_TRUE)
-			    output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, newlist(-1),
-				    newstringlist(jumpLabel)), ((LiteralValue) exitExpr).location);
+			    output(new OpcodeControlBitmaskLabel(Opcodes.JMP, Opcodes.BITMASK_JMP_AORO, LangUtils.newlist(-1),
+				    LangUtils.newstringlist(jumpLabel)), ((LiteralValue) exitExpr).location);
 		    } else {
 			if (!emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, exitExpr))
 			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
 				    "emitOpcodesStatement: exitwhen conditional not on stack");
 			output(new OpcodeControlBitmask(Opcodes.CMP, Opcodes.BITMASK_CMP_CONSUME), exitExpr.location);
 			output(new OpcodeControlBitmaskLabel(Opcodes.JMP, (byte) (Opcodes.BITMASK_JMP_AORO | Opcodes.BITMASK_JMP_JCJT),
-				newlist(-1), newstringlist(jumpLabel)), ((ExitWhenStatement) s).location);
+				LangUtils.newlist(-1), LangUtils.newstringlist(jumpLabel)), ((ExitWhenStatement) s).location);
 		    }
 		    return true;
 		} else if (s instanceof TryCatchStatement) {
 		    String label = label(String.format("TRY"));
 		    newblocktag(BlockType.TRY);
-		    output(new OpcodeControlBitmaskLabel(Opcodes.TRY, (byte) 0, newlist(-1), newstringlist(label)),
+		    output(new OpcodeControlBitmaskLabel(Opcodes.TRY, (byte) 0, LangUtils.newlist(-1), LangUtils.newstringlist(label)),
 			    ((TryCatchStatement) s).location);
 		    if (!emitOpcodesBlock(typeMachine, linker, declaringChunk, fnDecl, ((TryCatchStatement) s).tryBlock))
 			return false;
@@ -981,14 +990,14 @@ public class FunctionAssembler {
 			newblocktag(BlockType.CATCH);
 			if (itx.hasNext())
 			    output(new Opcodes.OpcodeControlBitmaskLabel(Opcodes.CATCH, Opcodes.BITMASK_CATCH_HASNEXT,
-				    newlist(catchtype, -1), newstringlist(null, catchlabel)), block.location);
+				    LangUtils.newlist(catchtype, -1), LangUtils.newstringlist(null, catchlabel)), block.location);
 			else
-			    output(new Opcodes.OpcodeControlBitmaskLabel(Opcodes.CATCH, (byte) 0, newlist(catchtype, -1),
-				    newstringlist(null, catchlabel)), block.location);
+			    output(new Opcodes.OpcodeControlBitmaskLabel(Opcodes.CATCH, (byte) 0, LangUtils.newlist(catchtype, -1),
+				    LangUtils.newstringlist(null, catchlabel)), block.location);
 
 			newclosure(catchlabel, block.location);
 			int ptr = newclosurevar(typeMachine, block.catchLocal, block.typeOfCatch, block.location);
-			output(new OpcodeControlBitmask(Opcodes.SETLOCAL, newlist(ptr)), block.location);
+			output(new OpcodeControlBitmask(Opcodes.SETLOCAL, LangUtils.newlist(ptr)), block.location);
 
 			if (!emitOpcodesBlock(typeMachine, linker, declaringChunk, fnDecl, block.block))
 			    return false;
@@ -1004,7 +1013,7 @@ public class FunctionAssembler {
 			if (lv.typeOfValue != TypeDecl.TYPE_STRING)
 			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
 				    "emitOpcodesStatement: literal for RAISE not type=STRING");
-			output(new OpcodeControlBitmask(Opcodes.PUSHS, newlist(lv.valueObject)), lv.location);
+			output(new OpcodeControlBitmask(Opcodes.PUSHS, LangUtils.newlist(lv.valueObject)), lv.location);
 		    } else
 			emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, ((RaiseStatement) s).raiseValue);
 		    output(Opcodes.RAISE, ((RaiseStatement) s).location);
@@ -1028,7 +1037,10 @@ public class FunctionAssembler {
 		    return true;
 		} else if (s instanceof ReturnStatement) {
 		    ReturnStatement returnStmt = (ReturnStatement) s;
-		    if (returnStmt.returnExpression != null)
+		    if (returnStmt.returnExpression != null) {
+			if (fnDecl.returnType == TypeDecl.TYPE_NOTHING)
+			    throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
+				    "emitOpcodesStatement: cannot return a value from a `returns nothing` func");
 			if (returnStmt.returnExpression instanceof LiteralValue) {
 			    if (!emitOpcodesLiteral(typeMachine, declaringChunk, fnDecl, inBlock, (LiteralValue) returnStmt.returnExpression))
 				throw new FunctionAssemblySourceException(declaringChunk, fnDecl, s,
@@ -1040,7 +1052,7 @@ public class FunctionAssembler {
 					"emitOpcodesStatement: return returnexpr not on stack");
 			    output(new OpcodeControlBitmask(Opcodes.RETN, Opcodes.BITMASK_RETN_RVAL), returnStmt.location);
 			}
-		    else
+		    } else
 			output(new OpcodeControlBitmask(Opcodes.RETN, (byte) 0), returnStmt.location);
 		    return true;
 		}
@@ -1061,7 +1073,7 @@ public class FunctionAssembler {
 			while (itx.hasNext())
 			    emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, itx.next());
 		    }
-		    output(new OpcodeControlBitmask(Opcodes.CALL, newlist(fcs.nameOfFunction, (fcs.params != null) ? fcs.params.size() : 0)),
+		    output(new OpcodeControlBitmask(Opcodes.CALL, LangUtils.newlist(fcs.nameOfFunction, (fcs.params != null) ? fcs.params.size() : 0)),
 			    fcs.location);
 		    return true;
 		} else if (s instanceof FunctionCallVarStatement) {
@@ -1073,10 +1085,10 @@ public class FunctionAssembler {
 		    }
 		    int slot = getclosurevar(fcvs.nameOfLocalOrGlobalVar);
 		    if (slot != -1)
-			output(new OpcodeControlBitmask(Opcodes.CALLLOCAL, newlist(slot, (fcvs.params != null) ? fcvs.params.size() : 0)),
+			output(new OpcodeControlBitmask(Opcodes.CALLLOCAL, LangUtils.newlist(slot, (fcvs.params != null) ? fcvs.params.size() : 0)),
 				fcvs.location);
 		    else
-			output(new OpcodeControlBitmask(Opcodes.CALLGLOBAL, newlist(fcvs.nameOfLocalOrGlobalVar,
+			output(new OpcodeControlBitmask(Opcodes.CALLGLOBAL, LangUtils.newlist(fcvs.nameOfLocalOrGlobalVar,
 				(fcvs.params != null) ? fcvs.params.size() : 0)), fcvs.location);
 		    return true;
 		} else if (s instanceof SetVariableStatement) {
@@ -1084,9 +1096,9 @@ public class FunctionAssembler {
 		    emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, sv.rhs);
 		    int slot = getclosurevar(sv.nameOfLocalVar);
 		    if (slot != -1)
-			output(new OpcodeControlBitmask(Opcodes.SETLOCAL, newlist(slot)), sv.location);
+			output(new OpcodeControlBitmask(Opcodes.SETLOCAL, LangUtils.newlist(slot)), sv.location);
 		    else
-			output(new OpcodeControlBitmask(Opcodes.SETGLOBAL, newlist(sv.nameOfLocalVar)), sv.location);
+			output(new OpcodeControlBitmask(Opcodes.SETGLOBAL, LangUtils.newlist(sv.nameOfLocalVar)), sv.location);
 		    return true;
 		} else if (s instanceof SetArrayVariableStatement) {
 		    SetArrayVariableStatement sav = (SetArrayVariableStatement) s;
@@ -1094,9 +1106,9 @@ public class FunctionAssembler {
 		    emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, sav.indexOfArrayExpr);
 		    int slot = getclosurevar(sav.nameOfLocalVar);
 		    if (slot != -1)
-			output(new OpcodeControlBitmask(Opcodes.SETLOCALARR, newlist(slot)), sav.location);
+			output(new OpcodeControlBitmask(Opcodes.SETLOCALARR, LangUtils.newlist(slot)), sav.location);
 		    else
-			output(new OpcodeControlBitmask(Opcodes.SETGLOBALARR, newlist(sav.nameOfLocalVar)), sav.location);
+			output(new OpcodeControlBitmask(Opcodes.SETGLOBALARR, LangUtils.newlist(sav.nameOfLocalVar)), sav.location);
 		    return true;
 		}
 	    } else if (s instanceof DirectAssembly) {
@@ -1114,12 +1126,12 @@ public class FunctionAssembler {
 	 * the right-most term(s) of the binary expression (if the top level expression is a binary expression), or begins with a single
 	 * unary operation followed by any expression, or is a literal value which may directly be placed on the stack.
 	 *
-	 * @param typeMachine    The type assembler
-	 * @param linker         The linker
+	 * @param typeMachine The type assembler
+	 * @param linker The linker
 	 * @param declaringChunk The declaring code chunk
-	 * @param fnDecl         The function declaration
-	 * @param inBlock        The function declaration block
-	 * @param e              The expression to be written to bytecode
+	 * @param fnDecl The function declaration
+	 * @param inBlock The function declaration block
+	 * @param e The expression to be written to bytecode
 	 *
 	 * @return If the Expression was written to bytecode or not
 	 *
@@ -1157,11 +1169,11 @@ public class FunctionAssembler {
 
 			switch (unary.operand) {
 			    case NUM_INCREMENT_PRE: {
-				output(new OpcodeControlBitmask(Opcodes.INCL, Opcodes.BITMASK_INCL_POST, newlist(slot)));
+				output(new OpcodeControlBitmask(Opcodes.INCL, Opcodes.BITMASK_INCL_POST, LangUtils.newlist(slot)));
 				return true;
 			    }
 			    case NUM_INCREMENT_POST: {
-				output(new OpcodeControlBitmask(Opcodes.INCL, Opcodes.BITMASK_INCL_PRE, newlist(slot)));
+				output(new OpcodeControlBitmask(Opcodes.INCL, Opcodes.BITMASK_INCL_PRE, LangUtils.newlist(slot)));
 				return true;
 			    }
 			    default:
@@ -1183,11 +1195,11 @@ public class FunctionAssembler {
 
 			switch (unary.operand) {
 			    case NUM_DECREMENT_PRE: {
-				output(new OpcodeControlBitmask(Opcodes.DECL, Opcodes.BITMASK_DECL_POST, newlist(slot)));
+				output(new OpcodeControlBitmask(Opcodes.DECL, Opcodes.BITMASK_DECL_POST, LangUtils.newlist(slot)));
 				return true;
 			    }
 			    case NUM_DECREMENT_POST: {
-				output(new OpcodeControlBitmask(Opcodes.DECL, Opcodes.BITMASK_DECL_PRE, newlist(slot)));
+				output(new OpcodeControlBitmask(Opcodes.DECL, Opcodes.BITMASK_DECL_PRE, LangUtils.newlist(slot)));
 				return true;
 			    }
 			    default:
@@ -1225,11 +1237,11 @@ public class FunctionAssembler {
 
 		int slot = getclosurevar(((FunctionCallVarExpression) e).nameOfLocalOrGlobalVar);
 		if (slot != -1)
-		    output(new OpcodeControlBitmask(Opcodes.CALLLOCAL, Opcodes.BITMASK_CALLLOCAL_RVAL, newlist(slot)),
+		    output(new OpcodeControlBitmask(Opcodes.CALLLOCAL, Opcodes.BITMASK_CALLLOCAL_RVAL, LangUtils.newlist(slot)),
 			    ((FunctionCallVarExpression) e).location);
 		else
 		    output(new OpcodeControlBitmask(Opcodes.CALLGLOBAL, Opcodes.BITMASK_CALLGLOBAL_RVAL,
-			    newlist(((FunctionCallVarExpression) e).nameOfLocalOrGlobalVar)), ((FunctionCallVarExpression) e).location);
+			    LangUtils.newlist(((FunctionCallVarExpression) e).nameOfLocalOrGlobalVar)), ((FunctionCallVarExpression) e).location);
 		return true;
 	    } else if (e instanceof VariableArrayRefExpression) {
 		/* variable array index get */
@@ -1237,13 +1249,13 @@ public class FunctionAssembler {
 			((VariableArrayRefExpression) e).indexOfArrayExpr);
 		int slot = getclosurevar(((VariableArrayRefExpression) e).nameOfLocalOrGlobalVar);
 		if (slot != -1)
-		    output(new OpcodeControlBitmask(Opcodes.GETLOCALARR, newlist(slot)), ((VariableArrayRefExpression) e).location);
+		    output(new OpcodeControlBitmask(Opcodes.GETLOCALARR, LangUtils.newlist(slot)), ((VariableArrayRefExpression) e).location);
 		else {
 		    String label = getglobalvar(linker, ((VariableArrayRefExpression) e).nameOfLocalOrGlobalVar);
 		    if (label == null)
 			throw new FunctionAssemblySourceException(declaringChunk, fnDecl, e,
 				"emitOpcodesExpression: variable not a local or global var");
-		    output(new OpcodeControlBitmask(Opcodes.GETGLOBALARR, newlist(label)),
+		    output(new OpcodeControlBitmask(Opcodes.GETGLOBALARR, LangUtils.newlist(label)),
 			    ((VariableArrayRefExpression) e).location);
 		}
 		return true;
@@ -1251,19 +1263,19 @@ public class FunctionAssembler {
 		/* variable literal value get */
 		int slot = getclosurevar(((VariableRefExpression) e).nameOfLocalOrGlobalVar);
 		if (slot != -1)
-		    output(new OpcodeControlBitmask(Opcodes.GETLOCAL, newlist(slot)), ((VariableRefExpression) e).location);
+		    output(new OpcodeControlBitmask(Opcodes.GETLOCAL, LangUtils.newlist(slot)), ((VariableRefExpression) e).location);
 		else {
 		    String label = getglobalvar(linker, ((VariableRefExpression) e).nameOfLocalOrGlobalVar);
 		    if (label == null)
 			throw new FunctionAssemblySourceException(declaringChunk, fnDecl, e,
 				"emitOpcodesExpression: variable not a local or global var");
-		    output(new OpcodeControlBitmask(Opcodes.GETGLOBAL, newlist(label)),
+		    output(new OpcodeControlBitmask(Opcodes.GETGLOBAL, LangUtils.newlist(label)),
 			    ((VariableRefExpression) e).location);
 		}
 		return true;
 	    } else if (e instanceof FunctionRefExpression) {
 		/* function pointer creation */
-		output(new OpcodeControlBitmask(Opcodes.FUNCPTR, newlist(((FunctionRefExpression) e).nameOfFunction)),
+		output(new OpcodeControlBitmask(Opcodes.FUNCPTR, LangUtils.newlist(((FunctionRefExpression) e).nameOfFunction)),
 			((FunctionRefExpression) e).location);
 		return true;
 	    } else if (e instanceof LiteralValue)
@@ -1276,15 +1288,15 @@ public class FunctionAssembler {
 		throws IllegalStateException, InstantiationException, FunctionAssemblySourceException {
 	    m_logger.trace("emitting opcodes for literal type %s", lv.typeOfValue.typeName);
 	    if (lv.typeOfValue == TypeDecl.TYPE_BOOLEAN)
-		output(new OpcodeControlBitmask(Opcodes.PUSHB, newlist(lv == LiteralValue.VALUE_TRUE)), lv.location);
+		output(new OpcodeControlBitmask(Opcodes.PUSHB, LangUtils.newlist(lv == LiteralValue.VALUE_TRUE)), lv.location);
 	    else if (lv.typeOfValue == TypeDecl.TYPE_INTEGER)
-		output(new OpcodeControlBitmask(Opcodes.PUSHI, newlist(lv.valueObject)), lv.location);
+		output(new OpcodeControlBitmask(Opcodes.PUSHI, LangUtils.newlist(lv.valueObject)), lv.location);
 	    else if (lv.typeOfValue == TypeDecl.TYPE_REAL)
-		output(new OpcodeControlBitmask(Opcodes.PUSHR, newlist(lv.valueObject)), lv.location);
+		output(new OpcodeControlBitmask(Opcodes.PUSHR, LangUtils.newlist(lv.valueObject)), lv.location);
 	    else if (lv.typeOfValue == TypeDecl.TYPE_LONG)
-		output( new OpcodeControlBitmask(Opcodes.PUSHL, newlist(lv.valueObject)), lv.location);
+		output(new OpcodeControlBitmask(Opcodes.PUSHL, LangUtils.newlist(lv.valueObject)), lv.location);
 	    else if (lv.typeOfValue == TypeDecl.TYPE_STRING)
-		output(new OpcodeControlBitmask(Opcodes.PUSHS, newlist(lv.valueObject)), lv.location);
+		output(new OpcodeControlBitmask(Opcodes.PUSHS, LangUtils.newlist(lv.valueObject)), lv.location);
 	    else
 		throw new FunctionAssemblySourceException(declChunk, fnDecl, lv,
 			"emitOpcodesLiteral: unexpected literal type for RETURN statement");
@@ -1296,7 +1308,7 @@ public class FunctionAssembler {
 	 * closure, then the starting slot shall be at least the next slot after the function closure size. If there are closures already on
 	 * the stack for the function, then the starting slot shall be the next slot after the last closure on the stack.
 	 *
-	 * @param label    The debug label for the closure
+	 * @param label The debug label for the closure
 	 * @param location The debug location which created the closure
 	 */
 	void newclosure(String label, Location location) {
@@ -1317,9 +1329,9 @@ public class FunctionAssembler {
 	    gc.label = label;
 	    gc.start = slot;
 
-	    gc.names = new String[ s_maxFuncSubClosureVars ];
-	    gc.types = new int[ s_maxFuncSubClosureVars ];
-	    gc.arrays = new boolean[ s_maxFuncSubClosureVars ];
+	    gc.names = new String[s_maxFuncSubClosureVars];
+	    gc.types = new int[s_maxFuncSubClosureVars];
+	    gc.arrays = new boolean[s_maxFuncSubClosureVars];
 
 	    m_generatedClosures.push(gc);
 	    m_logger.trace("creating new closure: label `%s`, start: %s", gc.label, gc.start);
@@ -1332,15 +1344,12 @@ public class FunctionAssembler {
 	 * @param typeMachine The type-name assembler machine reference
 	 * @param nameOfLocal The name of the local closure variable; must be distinct from the current closure variables
 	 * @param typeOfLocal The type declaration type of the closure variable
-	 * @param location    The debug location which created the closure-local variable
+	 * @param location The debug location which created the closure-local variable
 	 *
 	 * @return The local slot which was allocated
 	 *
-	 * @throws IllegalStateException                                                          Any exception which occurs because the
-	 *                                                                                        closure variable cannot be allocated, such
-	 *                                                                                        as a duplicate closure variable name or
-	 *                                                                                        exhaustion of available closure variable
-	 *                                                                                        slots
+	 * @throws IllegalStateException Any exception which occurs because the closure variable cannot be allocated, such as a duplicate
+	 * closure variable name or exhaustion of available closure variable slots
 	 * @throws java.lang.InstantiationException
 	 * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
 	 * @throws logicscript.assembler.writer.FunctionAssembler.FunctionAssemblySourceException
@@ -1363,30 +1372,27 @@ public class FunctionAssembler {
 	    closure.arrays[ptr] = false;
 
 	    m_logger.trace("creating new closure local: name `%s`, type %s, slot %s", nameOfLocal, typeOfLocal, ptr);
-	    output(new OpcodeControlBitmask(Opcodes.NEWUPVAR, newlist(numberOfTypeOfLocal, closure.start + ptr)), location);
+	    output(new OpcodeControlBitmask(Opcodes.NEWUPVAR, LangUtils.newlist(numberOfTypeOfLocal, closure.start + ptr)), location);
 	    return closure.start + ptr;
 	}
 
 	/**
 	 * Generates a new closure-local array variable for the current closure on the stack.
 	 *
-	 * @param typeMachine    The type-name assembler machine reference
-	 * @param linker         The linker destination struct
+	 * @param typeMachine The type-name assembler machine reference
+	 * @param linker The linker destination struct
 	 * @param declaringChunk The AST chunk which defined the FunctionDecl
-	 * @param fnDecl         The FunctionDecl being compiled
-	 * @param inBlock        The Block in the FunctionDecl being compiled
-	 * @param nameOfLocal    The name of the local array variable to allocate
-	 * @param typeOfLocal    The type of the local array variable to allocate
-	 * @param dimExpr        The expression which defines the dimension of the array
-	 * @param location	      The debug location which created the closure-local array variable
+	 * @param fnDecl The FunctionDecl being compiled
+	 * @param inBlock The Block in the FunctionDecl being compiled
+	 * @param nameOfLocal The name of the local array variable to allocate
+	 * @param typeOfLocal The type of the local array variable to allocate
+	 * @param dimExpr The expression which defines the dimension of the array
+	 * @param location	The debug location which created the closure-local array variable
 	 *
 	 * @return The local slot which was allocated
 	 *
-	 * @throws IllegalStateException                                                          Any exception which occurs because the
-	 *                                                                                        closure variable cannot be allocated, such
-	 *                                                                                        as a duplicate closure variable name or
-	 *                                                                                        exhaustion of available closure variable
-	 *                                                                                        slots
+	 * @throws IllegalStateException Any exception which occurs because the closure variable cannot be allocated, such as a duplicate
+	 * closure variable name or exhaustion of available closure variable slots
 	 * @throws java.lang.InstantiationException
 	 * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
 	 * @throws logicscript.assembler.writer.FunctionAssembler.FunctionAssemblySourceException
@@ -1412,7 +1418,7 @@ public class FunctionAssembler {
 	    // generate assembly object:
 	    m_logger.trace("creating new closure local array: name `%s`, type %s", nameOfLocal, typeOfLocal);
 	    emitOpcodesExpression(typeMachine, linker, declaringChunk, fnDecl, inBlock, dimExpr);
-	    output(new OpcodeControlBitmask(Opcodes.NEWUPVAR, Opcodes.BITMASK_NEWUPVAR_ARRAY, newlist(ptr, numberOfTypeOfLocal)), location);
+	    output(new OpcodeControlBitmask(Opcodes.NEWUPVAR, Opcodes.BITMASK_NEWUPVAR_ARRAY, LangUtils.newlist(ptr, numberOfTypeOfLocal)), location);
 	    return ptr;
 	}
 
@@ -1461,8 +1467,7 @@ public class FunctionAssembler {
 	 *
 	 * @param location The debug location which ended the current closure on the stack
 	 *
-	 * @throws IllegalStateException                                                          If the closure stack is empty, an
-	 *                                                                                        IllegalStateException is thrown.
+	 * @throws IllegalStateException If the closure stack is empty, an IllegalStateException is thrown.
 	 * @throws logicscript.assembler.writer.FunctionAssembler.FunctionAssemblySourceException
 	 */
 	void endclosure(Location location) throws IllegalStateException, FunctionAssemblySourceException {
@@ -1489,7 +1494,7 @@ public class FunctionAssembler {
 	 * label may be used for debugging symbol generation.
 	 *
 	 * @param typeof The type of the block tag
-	 * @param label  The label for the block tag, or null if no label is desired
+	 * @param label The label for the block tag, or null if no label is desired
 	 */
 	void newblocktag(BlockType typeof, String label) {
 	    GeneratorBlock asFinalType = null;
@@ -1536,7 +1541,7 @@ public class FunctionAssembler {
 	 * @param typeof The type of the block-tag to remove from the stack.
 	 *
 	 * @throws IllegalStateException If the type of the block tag removed from the stack does not match the provided block type, then an
-	 *                               IllegalStateException is thrown.
+	 * IllegalStateException is thrown.
 	 */
 	void endblocktag(BlockType typeof) {
 	    GeneratorBlock stackNode = m_generatedBlockStack.pop();
@@ -1558,20 +1563,6 @@ public class FunctionAssembler {
 	    while (itx.hasNext())
 		sb.append(itx.next().label).append("/");
 	    return (sb.append(suffix)).toString();
-	}
-
-	List<Object> newlist(Object... theElementsAsVariadic) {
-	    LinkedList<Object> alloc = new LinkedList<>();
-	    for (int i = 0, j = theElementsAsVariadic.length; i < j; i++)
-		alloc.add(theElementsAsVariadic[i]);
-	    return alloc;
-	}
-
-	List<String> newstringlist(String... theStringsAsVariadic) {
-	    LinkedList<String> alloc = new LinkedList<>();
-	    for (int i = 0, j = theStringsAsVariadic.length; i < j; i++)
-		alloc.add(theStringsAsVariadic[i]);
-	    return alloc;
 	}
 
 	void output(Opcode opcode) {
@@ -1650,17 +1641,17 @@ public class FunctionAssembler {
     /**
      * Compile a user function.
      *
-     * @param dstLinkObj	         The linker object which contains the compiled import/export table
-     * @param dstFileObj          Destination buffer
+     * @param dstLinkObj	The linker object which contains the compiled import/export table
+     * @param dstFileObj Destination buffer
      * @param typeCompilerMachine The type compiler machine, for type compilation referencing
-     * @param declaringChunk      The code chunk which declares the function
-     * @param funcDecl            The function declaration object
-     * @param log                 The logging implementation
+     * @param declaringChunk The code chunk which declares the function
+     * @param funcDecl The function declaration object
+     * @param log The logging implementation
      *
      * @throws java.lang.InstantiationException
      * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
      *
-     * @throws FunctionAssemblySourceException                                         Any compilation-level exception
+     * @throws FunctionAssemblySourceException Any compilation-level exception
      */
     public void assembleUserFunction(LinkerObjectFile dstLinkObj, LogicBytecodeFile dstFileObj, TypeAssembler typeCompilerMachine,
 	    Chunk declaringChunk, FunctionDecl funcDecl, Log log) throws InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
@@ -1679,17 +1670,17 @@ public class FunctionAssembler {
     /**
      * Compile a native function.
      *
-     * @param dstLinkObj          The linker object which contains the compiled import/export table
-     * @param dstFileObj          Destination buffer
+     * @param dstLinkObj The linker object which contains the compiled import/export table
+     * @param dstFileObj Destination buffer
      * @param typeCompilerMachine The type compiler machine, for type compilation referencing
-     * @param declaringChunk      The code chunk which declares the function
-     * @param funcDecl            The native function declaration object
-     * @param log                 The logging implementation
+     * @param declaringChunk The code chunk which declares the function
+     * @param funcDecl The native function declaration object
+     * @param log The logging implementation
      *
      * @throws java.lang.InstantiationException
      * @throws logicscript.assembler.writer.TypeAssembler.TypeAssemblerLookupException
      *
-     * @throws FunctionAssemblySourceException                                         Any compilation-level exception
+     * @throws FunctionAssemblySourceException Any compilation-level exception
      */
     public void assembleNativeFunction(LinkerObjectFile dstLinkObj, LogicBytecodeFile dstFileObj, TypeAssembler typeCompilerMachine,
 	    Chunk declaringChunk, FunctionDecl funcDecl, Log log) throws InstantiationException, TypeAssemblerLookupException, FunctionAssemblySourceException {
@@ -1708,12 +1699,12 @@ public class FunctionAssembler {
     /**
      * Compile a function export statement.
      *
-     * @param dstLinkObj          The destination linker buffer
+     * @param dstLinkObj The destination linker buffer
      * @param typeCompilerMachine The type compiler machine, for type compilation referencing
-     * @param declaringChunk      The code chunk which declares the export statement
-     * @param exportBlock         The block within the export statement
-     * @param referentFuncs       The referent function list
-     * @param log                 The logging implementation
+     * @param declaringChunk The code chunk which declares the export statement
+     * @param exportBlock The block within the export statement
+     * @param referentFuncs The referent function list
+     * @param log The logging implementation
      *
      * @throws FunctionAssemblySourceException
      */
@@ -1730,12 +1721,12 @@ public class FunctionAssembler {
     /**
      * Compile a function import statement.
      *
-     * @param dstLinkObj          The destination linker buffer
+     * @param dstLinkObj The destination linker buffer
      * @param typeCompilerMachine The type compiler machine, for type compilation referencing
-     * @param declaringChunk      The code chunk which declares the export statement
-     * @param importBlock         The block within the import statement
-     * @param referentFuncs       The referent function list
-     * @param log                 The logging implementation
+     * @param declaringChunk The code chunk which declares the export statement
+     * @param importBlock The block within the import statement
+     * @param referentFuncs The referent function list
+     * @param log The logging implementation
      *
      * @throws FunctionAssemblySourceException
      */

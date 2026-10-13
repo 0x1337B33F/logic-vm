@@ -16,8 +16,13 @@ import logicbyte.bytecode.stream.LogicBytecodeOutputStream;
 import logicbyte.bytecode.validate.BytecodeValidationException;
 import logicbyte.bytecode.validate.BytecodeValidationException.IllegalOperandException;
 import logicbyte.bytecode.validate.LinkerValidationException;
+import logicscript.assembler.transformers.LocalOptimizerTransformer;
+import logicscript.assembler.validation.LoopValidationVisitor;
+import logicscript.assembler.validation.ReturnValidationVisitor;
+import logicscript.assembler.validation.TypeValidationVisitor;
 import logicscript.assembler.writer.ChunkAssembler;
 import logicscript.ast.Chunk;
+import logicscript.ast.ChunkVisitor;
 import logicscript.parser.LogicScriptParser;
 import logictype.Log.BaseLog;
 import logictype.Log.Level;
@@ -106,6 +111,11 @@ public class Compiler {
 	    shouldDumpGeneratedBytecode = true;
 	}
 
+	if (options.contains("+OPTIMIZE")) {
+	    System.out.println("Including non-baseline assembly optimizers. Remove `+OPTIMIZE` to disable.");
+	    compiler.addFunctionAssemblyTransformer(new LocalOptimizerTransformer());
+	}
+
 	if (options.contains("+LOG")) {
 	    System.out.println("Logging is enabled. Remove `+LOG` to disable.");
 	    final BaseLog logger = new BaseLog();
@@ -137,6 +147,9 @@ public class Compiler {
 	LinkerObjectOutputStream linkerWriterObj = null;
 	LogicBytecodeOutputStream bytecodeWriterObj = null;
 
+	ChunkVisitor loopVisitor = new LoopValidationVisitor(),
+		returnVisitor = new ReturnValidationVisitor();
+
 	for (File file : srcs)
 	    if (file.isFile()) {
 
@@ -161,10 +174,28 @@ public class Compiler {
 		} finally {
 		    if (fis != null)
 			try {
-			    fis.close();
-			} catch (Exception e) {
-			}
+			fis.close();
+		    } catch (Exception e) {
+		    }
 		}
+
+		try {
+		    loopVisitor.visitChunk(dstChunkObj);
+		} catch (Exception e) {
+		    // FIXME: if the visitor determines the chunk is bad, what to do?
+		    e.printStackTrace();
+		    continue;
+		}
+
+		try {
+		    returnVisitor.visitChunk(dstChunkObj);
+		} catch (Exception e) {
+		    // FIXME: if the visitor determines the chunk is bad, what to do?
+		    e.printStackTrace();
+		    continue;
+		}
+                
+                compiler.reset();
 
 		try {
 		    dstLinkerObj = new LinkerObjectFile(baseName);

@@ -2181,7 +2181,7 @@ TypeDecl decl = c.findTypeDecl ( t0.image );
       jj_input_stream.ReInit(stream, 1, 1);
    }
    if (token_source == null) {
- token_source = new LogicScriptParserTokenManager(jj_input_stream);
+      token_source = new LogicScriptParserTokenManager(jj_input_stream);
    }
 
     token_source.ReInit(jj_input_stream);

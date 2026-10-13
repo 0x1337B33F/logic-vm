@@ -81,13 +81,18 @@ public class ExpressionResolver {
 	    /* The decl is probably technically invalid, but indicate the return type would actually be `nothing` for now */
 	    return new LiteralValue(TypeDecl.TYPE_NOTHING, null);
 
-	/* If the function body has only one statement... */
-	if (functionDeclBlock.size() == 1) {
-	    logicscript.ast.nodes.stmt.Statement stmt = functionDeclBlock.get(0);
+	/* 
+	* The function body can contain three types of statements which makes them simplifiable:
+	* - a single RETURN or an IFTHEN compound (where all nodes of IFTHEN contain RETURNS); or
+	* - an IFTHEN compound (where not all nodes of IFTHEN contain RETURNS) followed by a 'default' RETURNS.
+	 */
+	if (functionDeclBlock.size() == 1 || functionDeclBlock.size() == 2) {
+	    logicscript.ast.nodes.stmt.Statement stmt0 = functionDeclBlock.get(0),
+		    stmt1 = (functionDeclBlock.size() == 2) ? functionDeclBlock.get(1) : null;
 
 	    /* If it is an explicit `function ... returns t return expr end`... */
-	    if (stmt instanceof ReturnStatement) {
-		ReturnStatement singleReturn = (ReturnStatement) stmt;
+	    if (stmt0 instanceof ReturnStatement) {
+		ReturnStatement singleReturn = (ReturnStatement) stmt0;
 		Expression resultOfSimplify = (singleReturn.returnExpression instanceof LiteralValue) ? singleReturn.returnExpression
 			: simplifyExpressionTree(originChunk, function, closureStack, singleReturn.returnExpression);
 
@@ -104,7 +109,7 @@ public class ExpressionResolver {
 	     * If it is a logical expansion, based on params (`function complex returns t if
 	     * cond then return a elseif (compound) else return z end`)
 	     */
-	    if (stmt instanceof IfStatement) {
+	    if (stmt0 instanceof IfStatement) {
 		/*
 		* let us begin stepping through the if-elseif-else compound: the value of all
 		* variables being either known or unknown, determined by the resolver if the
@@ -112,27 +117,139 @@ public class ExpressionResolver {
 		* simplification since the expression providing the JUMP to the block would
 		* have been matched anyway.
 		 */
-		IfStatement ifCompound = (IfStatement) stmt;
+		IfStatement ifCompound = (IfStatement) stmt0;
 
-		boolean flag = false;
+		Boolean flag = null;
 		Expression resultOfIfTest = (ifCompound.conditionalExpr instanceof LiteralValue) ? ifCompound.conditionalExpr
 			: simplifyExpressionTree(originChunk, function, closureStack, ifCompound.conditionalExpr);
 
+		/* If evaulation of the condition results in an LV: */
 		if (resultOfIfTest instanceof LiteralValue) {
 		    LiteralValue ifTestResult = (LiteralValue) resultOfIfTest;
+		    /* If the LV is a boolean: */
 		    if (ifTestResult.typeOfValue == TypeDecl.TYPE_BOOLEAN)
 			flag = (Boolean) ifTestResult.valueObject;
+		    /* Expand the LV of the condexpr */
 		}
 
-		if (flag) {
-		    // TODO: finish here
+		/* If the LV of the condexpr is true, then: */
+		if (flag != null && flag) {
 		    Block thenBlock = ifCompound.thenBlock;
-		    if (thenBlock.isEmpty()) {
-		    }
-		    /* .... why didn't you do AST checking first? lol :( */
+		    /*
+		    * If the TRUE block of the condexpr is empty, then consider the
+		    * second top-level statement (if any):
+		     */
+		    if (thenBlock.size() == 0 && stmt1 == null)
+			return null;
+		    if (thenBlock.size() == 1) {
+			Statement stmt2 = thenBlock.get(0);
 
+			/* If the only statement in the THEN block is a RETURN... */
+			if (stmt2 instanceof ReturnStatement) {
+			    ReturnStatement singleReturn = (ReturnStatement) stmt2;
+			    Expression resultOfSimplify = (singleReturn.returnExpression instanceof LiteralValue) ? singleReturn.returnExpression
+				    : simplifyExpressionTree(originChunk, function, closureStack, singleReturn.returnExpression);
+
+			    /* ... and the RETURN expression can be simplified to a literal... */
+			    if (resultOfSimplify instanceof LiteralValue)
+				/* ... then, indeed, we can assert the result the return of the function. */
+				return resultOfSimplify;
+			    else
+				/* ... else the RETURN contains unsimplifable term(s) */
+				return null;
+			} else
+			    return null;
+		    } else
+			return null;
 		}
 
+		/*
+		* If the LV of the condexpr is false, then one of the following applies:
+		* - If there are elseif blocks, step each elseif block; or
+		* - If there is an else block, it is the else block.
+		 */
+		if (flag != null && !flag)
+		    if (ifCompound.elseIfBlocks != null && ifCompound.elseIfBlocks.size() > 0) {
+			Integer idx = null;
+			for (int i = 0, j = ifCompound.elseIfCondExprs.size(); i < j; i++) {
+			    Expression elseIfExpr = ifCompound.elseIfCondExprs.get(i),
+				    resultOfElseIfExpr = (elseIfExpr instanceof LiteralValue) ? elseIfExpr
+					    : simplifyExpressionTree(originChunk, function, closureStack, elseIfExpr);
+
+			    /* If the evaluation of the elseif condition results in an LV: */
+			    if (resultOfElseIfExpr instanceof LiteralValue) {
+				LiteralValue elseIfTestResult = (LiteralValue) resultOfElseIfExpr;
+				/* If the LV result is a boolean: */
+				if (elseIfTestResult.typeOfValue == TypeDecl.TYPE_BOOLEAN && (Boolean) elseIfTestResult.valueObject) {
+				    /* Record which index of elseif we are in: */
+				    idx = i;
+				    break;
+				}
+			    }
+			}
+
+			/* If an elseif was found wich has LV true: */
+			if (idx != null) {
+			    Block elseIfBlock = ifCompound.elseIfBlocks.get(idx);
+
+			    /* If the block is empty, return nothing: */
+			    if (elseIfBlock.size() == 0)
+				return null;
+
+			    /* If the block has one statement: */
+			    if (elseIfBlock.size() == 1) {
+				stmt0 = elseIfBlock.get(0);
+
+				/* If the one statement is a RETURN: */
+				if (stmt0 instanceof ReturnStatement) {
+				    ReturnStatement elseIfRetn = (ReturnStatement) stmt0;
+				    Expression resultOfSimplify = (elseIfRetn.returnExpression instanceof LiteralValue) ? elseIfRetn.returnExpression
+					    : simplifyExpressionTree(originChunk, function, closureStack, elseIfRetn.returnExpression);
+
+				    /* ... and the RETURN expression can be simplified to a literal... */
+				    if (resultOfSimplify instanceof LiteralValue)
+					/* ... then, indeed, we can assert the result the return of the function. */
+					return resultOfSimplify;
+				    else
+					/* ... else the RETURN contains unsimplifable term(s) */
+					return null;
+				} else
+				    return null;
+			    } else
+				return null;
+
+			}
+		    }
+
+		if (flag != null && !flag) {
+		    Block elseBlock = ifCompound.elseBlock;
+		    if (elseBlock.size() == 0 && stmt1 == null)
+			return null;
+		    if (elseBlock.size() == 1) {
+			stmt0 = elseBlock.get(0);
+
+			/* If the one statement is a RETURN: */
+			if (stmt0 instanceof ReturnStatement) {
+			    ReturnStatement elseIfRetn = (ReturnStatement) stmt0;
+			    Expression resultOfSimplify = (elseIfRetn.returnExpression instanceof LiteralValue) ? elseIfRetn.returnExpression
+				    : simplifyExpressionTree(originChunk, function, closureStack, elseIfRetn.returnExpression);
+
+			    /* ... and the RETURN expression can be simplified to a literal... */
+			    if (resultOfSimplify instanceof LiteralValue)
+				/* ... then, indeed, we can assert the result the return of the function. */
+				return resultOfSimplify;
+			    else
+				/* ... else the RETURN contains unsimplifable term(s) */
+				return null;
+			} else
+			    return null;
+		    }
+
+		}
+		/* 
+		* If we have evaluated the IF-THEN, and the ELSEIF blocks, then
+		* the only remaining option is the ELSE block:
+		 */
 	    }
 
 	    /* Else the function cannot be easily simplified (yet) */
@@ -184,14 +301,14 @@ public class ExpressionResolver {
      *
      *
      *
-     * @param originChunk     The Chunk scope in which the Expression was defined
-     * @param optFuncClosure  (optional) The function closure in which the Expression was defined
+     * @param originChunk The Chunk scope in which the Expression was defined
+     * @param optFuncClosure (optional) The function closure in which the Expression was defined
      * @param optClosureStack (optional) a stack-ordered (top to bottom) List collection of Closure(s) which shall be checked (in stack
-     *                        order) when looking for locals.
-     * @param node            The expression object to resolve, top-level node
+     * order) when looking for locals.
+     * @param node The expression object to resolve, top-level node
      *
      * @return Depending on the nature of the Expression provided, the original Expression un-modified or a mutated version of the
-     *         Expression modified or a LiteralValue indicating total simplification of the expression provided.
+     * Expression modified or a LiteralValue indicating total simplification of the expression provided.
      */
     public static Expression simplifyExpressionTree(Chunk originChunk, FunctionDecl optFuncClosure, List<Closure> optClosureStack,
 	    Expression node) throws Exception {
@@ -383,7 +500,7 @@ public class ExpressionResolver {
 		    case NUM_SUB:
 			/* both sides must be INTEGER or REAL: */
 			if (computedLhs.typeOfValue != TypeDecl.TYPE_INTEGER
-				&& computedLhs.typeOfValue != TypeDecl.TYPE_REAL 
+				&& computedLhs.typeOfValue != TypeDecl.TYPE_REAL
 				&& computedLhs.typeOfValue != TypeDecl.TYPE_LONG)
 			    /* expression would have resulted in illegal production anyway ? */
 			    throw new Exception(String.format("Expected integer or real for numerical %s, got %s (at %s)",
@@ -550,21 +667,19 @@ public class ExpressionResolver {
 			switch (binExpr.operand) {
 
 			    case NUM_ADD:
-				if (l0 != null || l1 != null) {
-				    if ( l0 != null && l1 != null )
+				if (l0 != null || l1 != null)
+				    if (l0 != null && l1 != null)
 					mutatedLiteral.valueObject = l0 + l1;
-				    else if ( l0 != null ) {
-					if ( d1 != null )
+				    else if (l0 != null)
+					if (d1 != null)
 					    mutatedLiteral.valueObject = l0 + d1.longValue();
 					else
 					    mutatedLiteral.valueObject = l0 + i1.longValue();
-				    } else {
-					if ( d0 != null )
-					    mutatedLiteral.valueObject = d0.doubleValue() + l1;
-					else
-					    mutatedLiteral.valueObject = i0.doubleValue() + l1;
-				    }
-				} else if (d0 != null || d1 != null) {
+				    else if (d0 != null)
+					mutatedLiteral.valueObject = d0.doubleValue() + l1;
+				    else
+					mutatedLiteral.valueObject = i0.doubleValue() + l1;
+				else if (d0 != null || d1 != null) {
 				    if (d0 != null && d1 != null)
 					mutatedLiteral.valueObject = d0 + d1;
 				    else if (d0 != null)
@@ -579,21 +694,19 @@ public class ExpressionResolver {
 				}
 				break;
 			    case NUM_SUB:
-				if (l0 != null || l1 != null) {
-				    if ( l0 != null && l1 != null )
+				if (l0 != null || l1 != null)
+				    if (l0 != null && l1 != null)
 					mutatedLiteral.valueObject = l0 - l1;
-				    else if ( l0 != null ) {
-					if ( d1 != null )
+				    else if (l0 != null)
+					if (d1 != null)
 					    mutatedLiteral.valueObject = l0 - d1.longValue();
 					else
 					    mutatedLiteral.valueObject = l0 - i1.longValue();
-				    } else {
-					if ( d0 != null )
-					    mutatedLiteral.valueObject = d0.doubleValue() - l1;
-					else
-					    mutatedLiteral.valueObject = i0.doubleValue() - l1;
-				    }
-				} else if (d0 != null || d1 != null) {
+				    else if (d0 != null)
+					mutatedLiteral.valueObject = d0.doubleValue() - l1;
+				    else
+					mutatedLiteral.valueObject = i0.doubleValue() - l1;
+				else if (d0 != null || d1 != null) {
 				    /* SUB (double, any | any, double) -> double */
 				    if (d0 != null && d1 != null)
 					/* -> SUB ( double, double ) -> double (as REAL) */
@@ -612,21 +725,19 @@ public class ExpressionResolver {
 				}
 				break;
 			    case NUM_DIV:
-				if (l0 != null || l1 != null) {
-				    if ( l0 != null && l1 != null )
+				if (l0 != null || l1 != null)
+				    if (l0 != null && l1 != null)
 					mutatedLiteral.valueObject = l0 / l1;
-				    else if ( l0 != null ) {
-					if ( d1 != null )
+				    else if (l0 != null)
+					if (d1 != null)
 					    mutatedLiteral.valueObject = l0 / d1.longValue();
 					else
 					    mutatedLiteral.valueObject = l0 / i1.longValue();
-				    } else {
-					if ( d0 != null )
-					    mutatedLiteral.valueObject = d0.doubleValue() / l1;
-					else
-					    mutatedLiteral.valueObject = i0.doubleValue() / l1;
-				    }
-				} else if (d0 != null || d1 != null)
+				    else if (d0 != null)
+					mutatedLiteral.valueObject = d0.doubleValue() / l1;
+				    else
+					mutatedLiteral.valueObject = i0.doubleValue() / l1;
+				else if (d0 != null || d1 != null)
 				    /* DIV (....) */
 				    if (d0 != null && d1 != null) {
 					/* -> DIV ( double, double ) -> double (as REAL) */
@@ -648,21 +759,19 @@ public class ExpressionResolver {
 				}
 				break;
 			    case NUM_MUL:
-				if (l0 != null || l1 != null) {
-				    if ( l0 != null && l1 != null )
+				if (l0 != null || l1 != null)
+				    if (l0 != null && l1 != null)
 					mutatedLiteral.valueObject = l0 * l1;
-				    else if ( l0 != null ) {
-					if ( d1 != null )
+				    else if (l0 != null)
+					if (d1 != null)
 					    mutatedLiteral.valueObject = l0 * d1.longValue();
 					else
 					    mutatedLiteral.valueObject = l0 * i1.longValue();
-				    } else {
-					if ( d0 != null )
-					    mutatedLiteral.valueObject = d0.doubleValue() * l1;
-					else
-					    mutatedLiteral.valueObject = i0.doubleValue() * l1;
-				    }
-				} else if (d0 != null || d1 != null)
+				    else if (d0 != null)
+					mutatedLiteral.valueObject = d0.doubleValue() * l1;
+				    else
+					mutatedLiteral.valueObject = i0.doubleValue() * l1;
+				else if (d0 != null || d1 != null)
 				    /* MUL (....) */
 				    if (d0 != null && d1 != null) {
 					/* -> MUL ( double, double ) -> double (as REAL) */
@@ -711,7 +820,7 @@ public class ExpressionResolver {
 
 			switch (binExpr.operand) {
 			    case NUM_MOD: {
-				if ( l0 != null )
+				if (l0 != null)
 				    mutatedLiteral.valueObject = l0 % i1;
 				else if (d0 != null)
 				    mutatedLiteral.valueObject = d0 % i1;
@@ -720,12 +829,12 @@ public class ExpressionResolver {
 				break;
 			    }
 			    case NUM_POW: {
-				if ( l0 != null )
-				    mutatedLiteral.valueObject = (Long) ( (long) Math.pow( (double) l0, (double) i1) );
+				if (l0 != null)
+				    mutatedLiteral.valueObject = (Long) ((long) Math.pow((double) l0, (double) i1));
 				else if (d0 != null)
-				    mutatedLiteral.valueObject = Math.pow( d0, (double) i1);
+				    mutatedLiteral.valueObject = Math.pow(d0, (double) i1);
 				else
-				    mutatedLiteral.valueObject = (Integer) ( (int) Math.pow( ( double ) i0 , (double) i1 ) );
+				    mutatedLiteral.valueObject = (Integer) ((int) Math.pow((double) i0, (double) i1));
 				break;
 			    }
 
@@ -766,7 +875,7 @@ public class ExpressionResolver {
 				i0 = (Integer) lhsValObj;
 			    if (lhsValObj instanceof Boolean)
 				b0 = (Boolean) lhsValObj;
-			    if ( lhsValObj instanceof Long)
+			    if (lhsValObj instanceof Long)
 				l0 = (Long) lhsValObj;
 
 			    if (rhsValObj instanceof Double)
@@ -777,7 +886,7 @@ public class ExpressionResolver {
 				i1 = (Integer) rhsValObj;
 			    if (rhsValObj instanceof Boolean)
 				b1 = (Boolean) rhsValObj;
-			    if ( rhsValObj instanceof Long ) 
+			    if (rhsValObj instanceof Long)
 				l1 = (Long) rhsValObj;
 
 			    if (b0 != null || b1 != null) {
@@ -795,17 +904,22 @@ public class ExpressionResolver {
 				    default:
 					throw new Exception("illegal state");
 				}
-			    } else if (l0 != null || l1 != null ) {
-				if ( l0 != null && l1 != null ) {
-				    switch ( binExpr.operand ) {
-					case VAL_EQ: mutatedLiteral.valueObject = ( ((long) l0) == ((long) l1) ); break;
-					case VAL_NEQ: mutatedLiteral.valueObject = ( ((long) l0) != ((long) l1) ); break;
-					default: throw new Exception("illegal state");
+			    } else if (l0 != null || l1 != null)
+				if (l0 != null && l1 != null)
+				    switch (binExpr.operand) {
+					case VAL_EQ:
+					    mutatedLiteral.valueObject = (((long) l0) == ((long) l1));
+					    break;
+					case VAL_NEQ:
+					    mutatedLiteral.valueObject = (((long) l0) != ((long) l1));
+					    break;
+					default:
+					    throw new Exception("illegal state");
 				    }
-				} else
+				else
 				    throw new Exception(String.format("Expected long, long for operand %s where one argument is long, got %s, %s",
 					    binExpr.operand, computedLhs.typeOfValue, computedRhs.typeOfValue));
-			    } else if (d0 != null || d1 != null)
+			    else if (d0 != null || d1 != null)
 				if (d0 != null && d1 != null)
 				    switch (binExpr.operand) {
 					case VAL_EQ:
@@ -870,7 +984,7 @@ public class ExpressionResolver {
 			    d0 = ((Float) lhsValObj).doubleValue();
 			else if (lhsValObj instanceof Integer)
 			    i0 = (Integer) lhsValObj;
-			else if ( lhsValObj instanceof Long )
+			else if (lhsValObj instanceof Long)
 			    l0 = (Long) lhsValObj;
 
 			if (rhsValObj instanceof Double)
@@ -884,13 +998,13 @@ public class ExpressionResolver {
 
 			switch (binExpr.operand) {
 			    case VAL_GT:
-				if (l0 != null || l1 != null ) {
-				    if ( l0 != null && l1 != null ) {
+				if (l0 != null || l1 != null)
+				    if (l0 != null && l1 != null)
 					mutatedLiteral.valueObject = l0 > l1;
-				    } else
+				    else
 					throw new Exception(String.format("Expected long, long for operand %s where one argument is long, got %s, %s",
 						binExpr.operand, computedLhs.typeOfValue, computedRhs.typeOfValue));
-				} else if (d0 != null || d1 != null)
+				else if (d0 != null || d1 != null)
 				    if (d0 != null && d1 != null)
 					mutatedLiteral.valueObject = d0 > d1;
 				    else if (d0 != null)
@@ -901,13 +1015,13 @@ public class ExpressionResolver {
 				    mutatedLiteral.valueObject = i0 > i1;
 				break;
 			    case VAL_LT:
-				if (l0 != null || l1 != null ) {
-				    if ( l0 != null && l1 != null ) {
+				if (l0 != null || l1 != null)
+				    if (l0 != null && l1 != null)
 					mutatedLiteral.valueObject = l0 < l1;
-				    } else
+				    else
 					throw new Exception(String.format("Expected long, long for operand %s where one argument is long, got %s, %s",
 						binExpr.operand, computedLhs.typeOfValue, computedRhs.typeOfValue));
-				} else if (d0 != null || d1 != null)
+				else if (d0 != null || d1 != null)
 				    if (d0 != null && d1 != null)
 					mutatedLiteral.valueObject = d0 < d1;
 				    else if (d0 != null)
@@ -918,13 +1032,13 @@ public class ExpressionResolver {
 				    mutatedLiteral.valueObject = i0 < i1;
 				break;
 			    case VAL_GTEQ:
-				if (l0 != null || l1 != null ) {
-				    if ( l0 != null && l1 != null ) {
+				if (l0 != null || l1 != null)
+				    if (l0 != null && l1 != null)
 					mutatedLiteral.valueObject = l0 >= l1;
-				    } else
+				    else
 					throw new Exception(String.format("Expected long, long for operand %s where one argument is long, got %s, %s",
 						binExpr.operand, computedLhs.typeOfValue, computedRhs.typeOfValue));
-				} else if (d0 != null || d1 != null)
+				else if (d0 != null || d1 != null)
 				    if (d0 != null && d1 != null)
 					mutatedLiteral.valueObject = d0 >= d1;
 				    else if (d0 != null)
@@ -935,13 +1049,13 @@ public class ExpressionResolver {
 				    mutatedLiteral.valueObject = i0 >= i1;
 				break;
 			    case VAL_LTEQ:
-				if (l0 != null || l1 != null ) {
-				    if ( l0 != null && l1 != null ) {
+				if (l0 != null || l1 != null)
+				    if (l0 != null && l1 != null)
 					mutatedLiteral.valueObject = l0 <= l1;
-				    } else
+				    else
 					throw new Exception(String.format("Expected long, long for operand %s where one argument is long, got %s, %s",
 						binExpr.operand, computedLhs.typeOfValue, computedRhs.typeOfValue));
-				} else if (d0 != null || d1 != null)
+				else if (d0 != null || d1 != null)
 				    if (d0 != null && d1 != null)
 					mutatedLiteral.valueObject = d0 <= d1;
 				    else if (d0 != null)
@@ -1078,21 +1192,20 @@ public class ExpressionResolver {
      * <li>Imported function symbols;</li>
      * </ul>
      *
-     * @param originChunk     The Chunk scope in which the Expression was defined
-     * @param optFuncClosure  (optional) The function closure in which the Expression was defined
+     * @param originChunk The Chunk scope in which the Expression was defined
+     * @param optFuncClosure (optional) The function closure in which the Expression was defined
      * @param optClosureStack (optional) a stack-ordered (top to bottom) List collection of Closure(s) which shall be checked (in stack
-     *                        order) when looking for locals.
-     * @param node            The expression object to resolve, top-level node
+     * order) when looking for locals.
+     * @param node The expression object to resolve, top-level node
      *
      * @return A TypeDecl indicating the type (BOOLEAN, INTEGER, REAL, STRING, CODE, HANDLE) or NOTHING if invalid or <code>null</code> if
-     *         the expression cannot be resolved from the current level
+     * the expression cannot be resolved from the current level
      *
      * @throws TypeMismatchException for unary expressions, if the expression right-hand side does not resolve to a type applicable for the
-     *                               unary expression operand a TypeMismatchException shall be thrown; for binary expressions, if the
-     *                               expression left&amp;right hand sides type(s) do not resolve to applicable and/or compatible types a
-     *                               TypeMismatchException shall be thrown
-     * @throws Exception             if an unresolvable symbol is encountered, an Exception shall be thrown indicating the type of symbol
-     *                               (function, variable) &amp; the token location of the missing symbol
+     * unary expression operand a TypeMismatchException shall be thrown; for binary expressions, if the expression left&amp;right hand sides
+     * type(s) do not resolve to applicable and/or compatible types a TypeMismatchException shall be thrown
+     * @throws Exception if an unresolvable symbol is encountered, an Exception shall be thrown indicating the type of symbol (function,
+     * variable) &amp; the token location of the missing symbol
      */
     public static TypeDecl computeExpressionResultType(Chunk originChunk, FunctionDecl optFuncClosure, List<Closure> optClosureStack,
 	    Expression node)
@@ -1170,7 +1283,7 @@ public class ExpressionResolver {
 		case NUM_DIV:
 		case NUM_MUL:
 		    /* operators on LONG type always return LONG numbers, regardless of other params: */
-		    if ( computedLhsType == TypeDecl.TYPE_LONG || computedRhsType == TypeDecl.TYPE_LONG)
+		    if (computedLhsType == TypeDecl.TYPE_LONG || computedRhsType == TypeDecl.TYPE_LONG)
 			return TypeDecl.TYPE_LONG;
 		    /* all other numerical operations require REAL or INTEGER numbers only: */
 		    return (computedLhsType == TypeDecl.TYPE_REAL || computedRhsType == TypeDecl.TYPE_REAL)
@@ -1205,22 +1318,37 @@ public class ExpressionResolver {
 	    }
 
 	    if (optFuncClosure != null) {
-		Iterator<FunctionLVarDecl> itx = optFuncClosure.lvars.iterator();
-		while (itx.hasNext()) {
-		    FunctionLVarDecl localVar = itx.next();
-		    if (localVar.nameOfLocalVar.equals(varRef.nameOfLocalOrGlobalVar))
-			return localVar.valueType;
+		if (optFuncClosure.lvars != null
+			&& optFuncClosure.lvars.size() > 0) {
+		    Iterator<FunctionLVarDecl> itx = optFuncClosure.lvars.iterator();
+		    while (itx.hasNext()) {
+			FunctionLVarDecl localVar = itx.next();
+			if (localVar.nameOfLocalVar.equals(varRef.nameOfLocalOrGlobalVar))
+			    return localVar.valueType;
+		    }
+		}
+		
+		if ( optFuncClosure.paramNames != null &&
+			    optFuncClosure.paramNames.size() > 0 ) {
+		    for ( int i = 0, j = optFuncClosure.paramNames.size(); i < j; i++ ) {
+			if ( optFuncClosure.paramNames.get(i).equals(varRef.nameOfLocalOrGlobalVar)) {
+			    return optFuncClosure.paramTypes.get(i);
+			}
+		    }
 		}
 	    }
 
-	    Iterator<GlobalsBlock> itx = originChunk.globalsDecls.iterator();
-	    while (itx.hasNext()) {
-		GlobalsBlock blockOfGlobals = itx.next();
-		Iterator<GlobalsVarDecl> itx1 = blockOfGlobals.iterator();
-		while (itx1.hasNext()) {
-		    GlobalsVarDecl globalVar = itx1.next();
-		    if (globalVar.nameOfGlobalVar.equals(varRef.nameOfLocalOrGlobalVar))
-			return globalVar.valueType;
+	    if (originChunk.globalsDecls != null
+		    && originChunk.globalsDecls.size() > 0) {
+		Iterator<GlobalsBlock> itx = originChunk.globalsDecls.iterator();
+		while (itx.hasNext()) {
+		    GlobalsBlock blockOfGlobals = itx.next();
+		    Iterator<GlobalsVarDecl> itx1 = blockOfGlobals.iterator();
+		    while (itx1.hasNext()) {
+			GlobalsVarDecl globalVar = itx1.next();
+			if (globalVar.nameOfGlobalVar.equals(varRef.nameOfLocalOrGlobalVar))
+			    return globalVar.valueType;
+		    }
 		}
 	    }
 

@@ -1392,11 +1392,9 @@ private void jjCheckNAddStates(int start, int end)
   }
 
   /** Reinitialise parser. */
-  
   public void ReInit(SimpleCharStream stream)
   {
-
-
+	
     jjmatchedPos = jjnewStateCnt = 0;
     curLexState = defaultLexState;
     input_stream = stream;
@@ -1412,10 +1410,10 @@ private void jjCheckNAddStates(int start, int end)
   }
 
   /** Reinitialise parser. */
-  public void ReInit(SimpleCharStream stream, int lexState)
-  
+  public void ReInit( SimpleCharStream stream, int lexState)
   {
-    ReInit(stream);
+  
+    ReInit( stream);
     SwitchTo(lexState);
   }
 

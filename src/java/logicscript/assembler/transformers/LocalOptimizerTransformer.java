@@ -7,8 +7,11 @@ import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDecl.DebugLocationSe
 import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDecl.DebugSegment;
 import logicbyte.bytecode.LogicBytecodeFile.BytecodeFunctionDeclMutable;
 import logicbyte.bytecode.Opcode;
+import logicbyte.bytecode.Opcode.OpcodeControlBitmask;
 import logicbyte.bytecode.Opcode.Opcodes;
 import logicscript.assembler.FunctionBytecodeTransformer;
+import logictype.LangUtils;
+import logictype.Log;
 import logictype.Pair;
 
 /**
@@ -19,21 +22,21 @@ public class LocalOptimizerTransformer implements FunctionBytecodeTransformer {
 
     @Override
     public void apply(BytecodeFunctionDeclMutable generatedFunc, DebugSegment generatedFuncDebug,
-	    List<Pair<Object, DebugLocationSegment>> generatedOpcodes) {
+	    List<Pair<Object, DebugLocationSegment>> generatedOpcodes, Log log) throws Exception {
 	if (generatedFunc.isnfunc())
 	    return;
 
-	List<Integer> localUseList = new LinkedList<>();
-	for (int i = 0, j = generatedFunc.numlocals(); i < j; i++)
-	    localUseList.add(0);
+	if (generatedFunc.numlocals() == 0)
+	    return;
 
-	applyOptimizeLocalUsage(generatedFunc, generatedFuncDebug, generatedOpcodes);
-	applyCalculateLocalUsage(generatedFunc, generatedFuncDebug, generatedOpcodes, localUseList);
-	applyRemoveUnusedLocals(generatedFunc, generatedFuncDebug, generatedOpcodes, localUseList);
+	List<Integer> localUseList = new LinkedList<>();
+	applyOptimizeLocalUsage(generatedFunc, generatedFuncDebug, generatedOpcodes, log);
+	applyCalculateLocalUsage(generatedFunc, generatedFuncDebug, generatedOpcodes, localUseList, log);
+	applyRemoveUnusedLocals(generatedFunc, generatedFuncDebug, generatedOpcodes, localUseList, log);
     }
 
     private void applyOptimizeLocalUsage(BytecodeFunctionDeclMutable generatedFunc, DebugSegment generatedFuncDebug,
-	    List<Pair<Object, DebugLocationSegment>> generatedOpcodes) {
+	    List<Pair<Object, DebugLocationSegment>> generatedOpcodes, Log log) {
 	for (int i = 0, j = generatedOpcodes.size() - 1; i < j; i++) {
 	    Pair<Object, DebugLocationSegment> obj0 = generatedOpcodes.get(i),
 		    obj1 = generatedOpcodes.get(i + 1);
@@ -51,6 +54,7 @@ public class LocalOptimizerTransformer implements FunctionBytecodeTransformer {
 		    continue;
 
 		if (asEnum0 == Opcodes.SETLOCAL && asEnum1 == Opcodes.GETLOCAL && (int) o0.argobject(0) == (int) o1.argobject(0)) {
+		    log.trace("applying DUP-SET to SET->GET and nuking GET at mark %s", i);
 		    generatedOpcodes.set(i, new Pair<>(Opcodes.DUP, obj1.b()));
 		    generatedOpcodes.set(i + 1, obj0);
 		}
@@ -59,144 +63,146 @@ public class LocalOptimizerTransformer implements FunctionBytecodeTransformer {
     }
 
     private void applyCalculateLocalUsage(BytecodeFunctionDeclMutable generatedFunc, DebugSegment generatedFuncDebug,
-	    List<Pair<Object, DebugLocationSegment>> generatedOpcodes, List<Integer> localUseList) {
-	// FIXME: must recurse into INCLOSURE / ENDCLOSURE structure to properly calculate
-	// usage of locals within closure scope. Woops.
+	    List<Pair<Object, DebugLocationSegment>> generatedOpcodes, List<Integer> localUseList, Log log) {
+	final int numLocals = generatedFunc.numlocals();
 	Iterator<Pair<Object, DebugLocationSegment>> itx = generatedOpcodes.iterator();
-	final int numArgs = generatedFunc.numargs();
 	while (itx.hasNext()) {
 	    Pair<Object, DebugLocationSegment> op = itx.next();
 	    if (op.a() instanceof Opcode) {
 		Opcode o = (Opcode) op.a();
 		Opcodes asEnum = o.opcode();
-		if (asEnum == Opcodes.GETLOCAL || asEnum == Opcodes.GETLOCALARR) {
-		    int slot = (int) o.argobject(0);
-		    if (slot >= numArgs) {
-			int localSlot = (int) o.argobject(0) - numArgs;
-			localUseList.set(localSlot, localUseList.get(localSlot) + 1);
-		    }
-		}
+		if (asEnum == Opcodes.GETLOCAL || asEnum == Opcodes.GETLOCALARR || asEnum == Opcodes.CALLLOCAL)
+		    if (!localUseList.contains((int) o.argobject(0)))
+			localUseList.add((int) o.argobject(0));
 	    }
 	}
     }
 
     private void applyRemoveUnusedLocals(BytecodeFunctionDeclMutable generatedFunc, DebugSegment generatedFuncDebug,
-	    List<Pair<Object, DebugLocationSegment>> generatedOpcodes, List<Integer> localUseList) {
+	    List<Pair<Object, DebugLocationSegment>> generatedOpcodes, List<Integer> localUseList, Log log) throws Exception {
+
+	// gobble memory, possibly unboundedly?:
+	int[] remapBuf = new int[generatedFunc.numlocals()];
+	for (int i = 0, j = remapBuf.length; i < j; i++)
+	    remapBuf[i] = i;
 
 	int deleted = 0;
-	for (int i = (generatedFunc.numlocals()) - 1; i >= 0; i--) {
-	    if (localUseList.get(i) != 0)
+	for (int i = (generatedFunc.numlocals()) - 1, j = i; i >= 0; i--) {
+	    if (localUseList.contains(i))
 		continue;
-	    int slot = generatedFunc.numargs() + i;
-	    int stack = 0;
 
-	    for (int j = (generatedOpcodes.size() - 1); j >= 0; j--) {
-		Pair<Object, DebugLocationSegment> obj = generatedOpcodes.get(j);
+	    log.debug("removing local %s from func `%s`", i, generatedFunc.name());
+
+	    // if there are entries to the right of the current deletion...
+	    if (i < remapBuf.length - 2)
+		// for remap purposes, everything to the /right/ of the deletion
+		// is now shifted to the left:
+		for (int k = i, l = remapBuf.length - 1; k < l; k++)
+		    remapBuf[k] = remapBuf[k + 1];
+
+	    for (int k = (generatedOpcodes.size() - 1); k >= 0; k--) {
+		Pair<Object, DebugLocationSegment> obj = generatedOpcodes.get(k);
 		if (obj.a() instanceof Opcode) {
 		    Opcode o = (Opcode) obj.a();
 		    Opcodes op = o.opcode();
-		    if (stack > 0) {
-			generatedOpcodes.remove(j);
 
-			switch (op) {
-			    case BINOP:
-				/* 2 stack values -> 1 stack value */
-				stack++;
-			    case UNOP:
-				/* 1 stack value -> 1 stack value */
-				break;
-			    case CALL:
-				/* n stack values -> 0|1 stack value */
-				if (o.getopt(Opcodes.BITMASK_CALL_RVAL))
-				    stack--;
-				stack += (int) o.argobject(1);
-				break;
-			    case CALLLOCAL:
-				/* n stack values -> 0|1 stack value */
-				if (o.getopt(Opcodes.BITMASK_CALLLOCAL_RVAL))
-				    stack--;
-				stack += (int) o.argobject(1);
-				break;
-			    case CALLGLOBAL:
-				/* n stack values -> 0|1 stack value */
-				if (o.getopt(Opcodes.BITMASK_CALLGLOBAL_RVAL))
-				    stack--;
-				stack += (int) o.argobject(1);
-				break;
-			    case FUNCPTR:
-				/* arg funcname -> 1 stack value */
-				stack--;
-				break;
+		    if (op == Opcodes.SETLOCAL && (int) o.argobject(0) == i)
+			generatedOpcodes.remove(k);
 
-			    case POP:
-				/* -1 stack value */
-				stack++;
-				break;
-			    case DUP:
-				/* 1 stack value */
-				stack--;
-				break;
-			    case GETGLOBALARR:
-			    case GETLOCALARR:
-				/* 1 stack value -> 1 stack value */
-				break;
+		    if (op == Opcodes.SETLOCALARR && (int) o.argobject(0) == i)
+			generatedOpcodes.remove(k);
 
-			    case GETGLOBAL:
-			    case GETLOCAL:
-			    case PUSHB:
-			    case PUSHI:
-			    case PUSHR:
-			    case PUSHS:
-				/* -> 1 stack value */
-				stack--;
-				break;
-			}
-
-		    } else {
-
-			// op used for literal set, literal init (stack = value)
-			if (op == Opcodes.SETLOCAL && (int) o.argobject(0) == slot) {
-			    stack++;
-			    generatedOpcodes.remove(j);
-			}
-
-			// op used for array set (stack = index, value)
-			if (op == Opcodes.SETLOCALARR && (int) o.argobject(0) == slot) {
-			    stack += 2;
-			    generatedOpcodes.remove(j);
-			}
-
-			// op used for array init (stack = dimension)
-			if (op == Opcodes.NEWARRAY && (int) o.argobject(1) == slot) {
-			    stack++;
-			    generatedOpcodes.remove(j);
-			}
-		    }
+		    if (op == Opcodes.NEWARRAY && (int) o.argobject(1) == i)
+			generatedOpcodes.remove(k);
 		}
 	    }
 	    deleted++;
 	}
 
-	if (deleted == generatedFunc.numlocals()) {
-	    generatedFunc.setlocals(null, null);
-	    generatedFuncDebug.setlocalnames(null);
-	} else {
-	    int[] newlocaltypes = new int[ generatedFunc.numlocals() - deleted ];
-	    boolean[] newlocalarrays = new boolean[ generatedFunc.numlocals() - deleted ];
-	    String[] newlocalnames = new String[ generatedFunc.numlocals() - deleted ];
-	    int ptr = 0;
-	    for (int i = 0, j = generatedFunc.numlocals(); i < j; i++) {
-		if (localUseList.get(i) == 0)
-		    continue;
-		newlocaltypes[ptr] = generatedFunc.localtype(i);
-		newlocalarrays[ptr] = generatedFunc.localarray(i);
-		newlocalnames[ptr] = generatedFuncDebug.argname(i);
-		ptr++;
-	    }
-	    generatedFunc.setlocals(newlocaltypes, newlocalarrays);
-	    generatedFuncDebug.setlocalnames(newlocalnames);
-	}
+	if (deleted > 0) // if we did something...
+	    if (deleted == generatedFunc.numlocals()) { // ... and it was completely apocalyptic...
+		// nuke all locals, don't bother doing remapping (not required)
+		generatedFunc.setlocals(null, null);
+		generatedFuncDebug.setlocalnames(null);
+	    } else { // ... only minor earthquake
+		// defragment localtypes storage:
+		final int heapSize = generatedFunc.numlocals() - deleted;
+		int[] newlocaltypes = new int[heapSize];
+		boolean[] newlocalarrays = new boolean[heapSize];
+		String[] newlocalnames = new String[heapSize];
+		int ptr = 0;
+		for (int i = 0; i < heapSize; i++) {
+		    if (localUseList.get(i) == 0)
+			continue;
+		    newlocaltypes[ptr] = generatedFunc.localtype(i);
+		    newlocalarrays[ptr] = generatedFunc.localarray(i);
+		    newlocalnames[ptr] = generatedFuncDebug.localname(i);
+		    ptr++;
+		}
+		generatedFunc.setlocals(newlocaltypes, newlocalarrays);
+		generatedFuncDebug.setlocalnames(newlocalnames);
+		// perform remapping: for each access to an lvar, left-to-right scan
+		// remapBuf to find the value in the collection; when found, the index
+		// of the value in the array reveals the new lvar assignment:
 
+		Pair<Object, DebugLocationSegment> ptr1 = null;
+		for (int i = 0, j = generatedOpcodes.size(); i < j; i++) {
+		    ptr1 = generatedOpcodes.get(i);
+		    if (ptr1.a() instanceof Opcode) {
+			Opcode o = (Opcode) ptr1.a();
+			Opcodes op = o.opcode();
+
+			int slot = -1;
+
+			switch (op) {
+			    case CALLLOCAL:
+			    case GETLOCAL:
+			    case SETLOCAL:
+			    case GETLOCALARR:
+			    case SETLOCALARR: {
+				slot = (int) o.argobject(0);
+			    }
+			    break;
+			    default: {
+				/* voidable */ }
+			}
+
+			if (slot == -1)
+			    continue;
+
+			for (int k = 0, l = remapBuf.length - deleted; k < l; k++)
+			    if (remapBuf[k] == slot) {
+				OpcodeControlBitmask ptr2 = null;
+				LinkedList<Object> ptr3 = new LinkedList<>();
+				for (int m = 0, n = o.args(); m < n; m++)
+				    ptr3.add(o.argobject(m));
+				// FIXME: this assumption is dangerous; the lvar slot may not be the first argobj
+				ptr3.set(0, k);
+				if (o.hasopts())
+				    try {
+					ptr2 = new OpcodeControlBitmask(o.opcode(), o.getopts(), ptr3);
+				    } catch (InstantiationException ie) {
+					throw new Exception("Transformer has corrupted code, abort", ie);
+				    }
+				else
+				    try {
+					ptr2 = new OpcodeControlBitmask(o.opcode(), ptr3);
+				    } catch (InstantiationException ie) {
+					throw new Exception("Transformer has corrupted code, abort", ie);
+				    }
+				// FIXME: technically, the "debug location" has changed, since we have re-written
+				// the opcode; do we need to indicate that we have been here?
+				generatedOpcodes.set(i, new Pair<>(ptr2, generatedOpcodes.get(i).b()));
+			    }
+		    }
+		}
+	    } // FIXME: we do need to renumber the closures as part of the optimize step,
+	// however, this is as simple as changing the beginning offset address, slide
+	// all values as far left as they can go, then do the same offset shift on 
+	// all the other instructions which rely on upvars. (the upvars cannot be
+	// removed because they are required for the control-flow portion of the
+	// particular statement(s) which they were created for, even if they are
+	// functionally unused in the declarative Block)
     }
 
 }

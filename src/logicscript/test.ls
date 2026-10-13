@@ -39,6 +39,10 @@ globals
     array integer   TestIntegerArray001	[ 8 ]
     array real	    TestRealArray000	[ 8 ]
 
+    integer foo = 1
+    integer bar = 2
+    integer baz = 3
+
 endglobals
 
 
@@ -171,6 +175,7 @@ function	TestSetGlobalArrayIntVal	takes nothing returns nothing
     set	    TestIntegerArray000[ 1 ] = 1
     
     for i in 2 to 16 by 1 do
+        call    PrintConsole ( Str_Concat( "Computing the fibonnaci sequence for index ", Cast_I2S ( i ) ) )
 	set	TestIntegerArray000[ i ] = TestIntegerArray000[ i - 1 ] + TestIntegerArray000 [ i - 2 ]
     endfor
     
@@ -205,11 +210,12 @@ function	CoFuncYieldsValues	    takes nothing returns nothing
     yield "staple"
 endfunction
 
-function	CoFuncReturnsYieldsValues   takes nothing returns nothing
+function	CoFuncReturnsYieldsValues   takes nothing returns string
     yield "apple"
     yield "orange"
     yield "tomato"
-    return "fruits?"
+    yield "fruits?"
+    return "this is what I was planning; coroutine exit testing!!"
 endfunction
 
 function	CoFuncRaisesError	    takes nothing returns nothing
@@ -251,6 +257,7 @@ function	TestCoFuncCall		    takes nothing returns nothing
 	if not Coroutine_IsComplete ( co1 ) then  call Coroutine_Step ( co1 ) endif
 	
 	if not Coroutine_IsComplete ( co0 ) then
+            call PrintConsole ( "Entering coroutine 0" )
 	    set yielded = Coroutine_GetSResult ( co0 )
 	    call PrintConsole ( Str_Concat ( "Yield 0: ", yielded ) )
 	else
@@ -259,6 +266,7 @@ function	TestCoFuncCall		    takes nothing returns nothing
 	endif
 
 	if not Coroutine_IsComplete ( co1 ) then
+            call PrintConsole ( "Entering coroutine 1" )
 	    set yielded = Coroutine_GetSResult ( co1 )
 	    call PrintConsole ( Str_Concat ( "Yield 1: ", yielded ) )
 	endif

@@ -178,21 +178,26 @@ public class VMTest {
 
 	try {
 
-	    /*
+	    
 	    VMInvokable callable = vm.invoke(callback, vm.getFunction(mainLinker, "TestNativePassedFunctionPointer000"));
-	    callable.invoke(callback, null);
-	    while (!callable.advance(callback));
+	    callable.invoke(null, null);
+	    while (!callable.advance(null));
 
 	    callable = vm.invoke(callback, vm.getFunction(mainLinker, "TestSetGlobalArrayIntVal"));
-	    callable.invoke(callback, null);
-	    while (!callable.advance(callback)) ;
+	    callable.invoke(null, null);
+	    while (!callable.advance(null)) ;
 
-	    callable = vm.invoke(null, vm.getFunction(mainLinker, "TestGetGlobalArrayIntVal"));
-	    callable.invoke(callback, null);
-	    while (!callable.advance(null));*/
-	    VMInvokable callable = vm.invoke(null, vm.getFunction(mainLinker, "TestLongNumberFunc"));
+	    callable = vm.invoke(callback, vm.getFunction(mainLinker, "TestGetGlobalArrayIntVal"));
+	    callable.invoke(null, null);
+	    while (!callable.advance(null));
+	    
+	    callable = vm.invoke(callback, vm.getFunction(mainLinker, "TestLongNumberFunc"));
 	    callable.invoke(null, null);
 
+	    
+	    callable = vm.invoke(callback, vm.getFunction(mainLinker, "TestCoFuncCall"));
+	    callable.invoke(null, null);
+	    
 	    boolean state = false;
 	    while (true)
 		if (callable.advance(null)) {

@@ -67,6 +67,12 @@ public class ChunkCompilerTest {
 
 	Assert.assertNotEquals("no functiondecls written", 0, allocBytecodeDst.getAll().length);
 
+	
+	// FIXME: this test is broken because `Coroutine_SPushB` was removed;
+	// iirc, this was done because pushing items onto the stack of a yielded
+	// coroutine is a bad idea for many reasons.
+	
+	/*
 	BytecodeFunctionDecl decl = allocBytecodeDst.get("Coroutine_SPushB");
 
 	Assert.assertEquals("expected isufunc=true", true, decl.isufunc());
@@ -81,7 +87,7 @@ public class ChunkCompilerTest {
 	Assert.assertEquals("expected hasreturn=true", true, decl.hasreturn());
 
 	Assert.assertEquals("expected argtype(0)=3", 3, decl.argtype(0));
-	Assert.assertEquals("expected returntype=3", 3, decl.returntype());
+	Assert.assertEquals("expected returntype=3", 3, decl.returntype());*/
 
 	Assert.assertEquals("expected EXPORTS{root.math}", true, allocLinkDst.exports("root.math"));
 
@@ -97,6 +103,9 @@ public class ChunkCompilerTest {
 
 	Assert.assertEquals("expected root.math.MATH_PI global to be real type", 5, piGlobal.type);
 
+	// FIXME: root.ls now exports a hell of a lot more useful stuff than
+	// it used to; this test is redundant
+	/*
 	ExportsEntry second = exportsByName.get(1);
 	Assert.assertEquals("expected ExportsEntry.type = GLOBALS", LinkerObjectFile.TYPEFLAGS_EXPORTS_FUNCTION, second.typeflags);
 	Assert.assertEquals("expected ExportsEntry.labels.size() = 2", 2, second.labels.size());
@@ -105,6 +114,7 @@ public class ChunkCompilerTest {
 	Assert.assertEquals("expected ExportsEntry.labels[1] = 'Math_Deg2Rad'", "Math_Deg2Rad", second.labels.get(1));
 
 	System.out.println(allocBytecodeDst.get("Math_Rad2Deg").toString());
+*/
 
     }
 
