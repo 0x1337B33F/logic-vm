@@ -19,7 +19,7 @@ public class ParserBaseTests {
 
     @Before
     public void setUp() throws Exception {
-	testInput = new FileInputStream(new File("test/script/lex/test.ls"));
+	testInput = new FileInputStream(new File("../test/script/lex/test.ls"));
 	testParser = new LogicScriptParser(testInput);
     }
 

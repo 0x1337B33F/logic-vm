@@ -32,7 +32,7 @@ public class LoopValidationVisitorTests {
 
     @Before
     public void setUp() throws Exception {
-	_parserInput = new FileInputStream(new File("test/script/assembler/validation/loops.ls"));
+	_parserInput = new FileInputStream(new File("../test/script/assembler/validation/loops.ls"));
 	_parserMachine = new LogicScriptParser(_parserInput);
 	_generatedCodeChunk = new Chunk();
 

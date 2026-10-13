@@ -32,7 +32,7 @@ public class ChunkCompilerTest {
 
     @Before
     public void setUp() throws Exception {
-	_parserInput = new FileInputStream(new File("test/script/lex/root.ls"));
+	_parserInput = new FileInputStream(new File("../test/script/lex/root.ls"));
 	_parserMachine = new LogicScriptParser(_parserInput);
 
 	_generatedCodeChunk = new Chunk();
